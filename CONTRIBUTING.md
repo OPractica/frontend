@@ -81,6 +81,22 @@ git push
 - In the description write what changed and how to check it.
 - Don't merge a pull request with failing checks or unresolved comments.
 
+## Automatic checks
+
+Every pull request to `main` or `release` runs these checks. GitHub lets you merge only when all of them are green and a teammate has approved the pull request.
+
+| Check | Fails when |
+|---|---|
+| `forbidden-files` | The repo contains `node_modules`, `.env`, `.DS_Store`, `__pycache__`, `.pyc`, `.db` or `.sqlite`, or a file bigger than 1 MB |
+| `pr-naming` | The pull request title or a commit message doesn't follow `type: description`, see [Commit messages](#commit-messages) |
+| `pr-size` | The pull request changes more than 800 lines, not counting lock files |
+
+- **Wrong commit message?** Fix the last one with `git commit --amend -m "fix: ..."` and run `git push --force-with-lease`. Only do this on your own task branch.
+- **Pull request too big?** Split it into several pull requests. If it can't be split, for example a revert, add the `big-pr` label and explain why in the description.
+- Pull requests from `main` or `release` (releases and bringing fixes back) skip `pr-size` and the commit message check, because those commits were already checked.
+
+After every push to `main` or `release`, `direct-push` checks that the commit came from a merged pull request and that nobody force-pushed. If it fails, the commit went around the rules and has to be reverted.
+
 ## Commit messages
 
 Format: `type: short description`, in English, imperative mood ("add", not "added").
@@ -93,6 +109,9 @@ Format: `type: short description`, in English, imperative mood ("add", not "adde
 | `chore` | Configs, dependencies, structure |
 | `refactor` | Code change that doesn't change behavior |
 | `test` | Tests |
+| `style` | Formatting only |
+| `ci` | GitHub Actions workflows |
+| `revert` | Undo an earlier change |
 
 Examples:
 
@@ -106,7 +125,7 @@ chore: update dependencies
 
 When `main` has a working version you want to show:
 
-1. Open a pull request `main -> release` and merge it.
+1. Open a pull request `main -> release` titled `chore: release v0.1` and merge it.
 2. Optionally tag the version:
    ```bash
    git checkout release
@@ -134,6 +153,7 @@ git push
 ## Rules
 
 - Never commit directly to `main` or `release`. Both branches are protected and accept changes only through pull requests.
+- Don't upload files through the GitHub website ("Add files via upload"). It skips `.gitignore` and the local checks. Commit and push with Git instead.
 - Always start a new task from the latest `main`.
 - Never commit secrets: `.env` files, passwords, API keys. Put example values in `.env.example`.
 - After your branch is merged and deleted, run `git fetch --prune` to remove stale remote branches locally.
