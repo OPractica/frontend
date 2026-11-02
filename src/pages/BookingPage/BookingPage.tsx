@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, message } from "antd";
 import { BookingPanel, type BookingSelection } from "../../features/booking-panel";
+import { OfficeMap } from "../../features/office-map";
 
 const pad = (h: number) => String(h).padStart(2, "0");
 
@@ -17,14 +18,19 @@ export default function BookingPage() {
     setPlace(null); // după rezervare, locul se deselectează
   };
 
-  return (
-    <div style={{ padding: 16 }}>
+    return (
+    <div style={{ padding: 16, display: "flex", gap: 24, alignItems: "flex-start" }}>
       {contextHolder}
-      <BookingPanel placeLabel={place} onBook={handleBook} />
-      {/* Temporar, până facem harta */}
-      <Button style={{ marginTop: 16 }} onClick={() => setPlace("A3")}>
-        Test: alege locul A3
-      </Button>
+      <div style={{ flex: 1 }}>
+        <OfficeMap />
+      </div>
+      <div>
+        <BookingPanel placeLabel={place} onBook={handleBook} />
+        {/* Temporar, până facem harta */}
+        <Button style={{ marginTop: 16 }} onClick={() => setPlace("A3")}>
+          Test: alege locul A3
+        </Button>
+      </div>
     </div>
   );
 }
