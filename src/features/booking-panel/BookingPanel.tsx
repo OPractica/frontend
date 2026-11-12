@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Button, Select, Switch } from "antd";
+import { useEffect, useState } from "react";
+import { Button, Select, Switch, theme as antdTheme } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { Calendar } from "../../shared/ui/molecules/Calendar";
 
@@ -13,6 +13,11 @@ export type BookingSelection = {
 type Props = {
   placeLabel: string | null; // locul ales pe hartă (deocamdată null)
   onBook: (selection: BookingSelection) => void;
+  // Anunță pagina de fiecare dată când se schimbă data sau orele, ca harta să arate ce e liber.
+  // Trebuie să fie o funcție stabilă (de exemplu setState), altfel se reapelează la fiecare randare.
+  onSelectionChange?: (selection: BookingSelection) => void;
+  // Valorile de pornire (de exemplu din căutarea cu AI). Se aplică doar la montare; schimbă `key` ca să le reiei.
+  initial?: BookingSelection;
 };
 
 // Orele posibile: 9..18
@@ -33,11 +38,16 @@ const firstWorkingDay = (): Dayjs => {
 
 const pad = (h: number) => String(h).padStart(2, "0");
 
-export default function BookingPanel({ placeLabel, onBook }: Props) {
-  const [date, setDate] = useState<Dayjs>(firstWorkingDay());
-  const [hourly, setHourly] = useState(false);
-  const [from, setFrom] = useState(9);
-  const [to, setTo] = useState(18);
+export default function BookingPanel({ placeLabel, onBook, onSelectionChange, initial }: Props) {
+  const { token } = antdTheme.useToken();
+  const [date, setDate] = useState<Dayjs>(initial?.date ?? firstWorkingDay());
+  const [hourly, setHourly] = useState(initial?.hourly ?? false);
+  const [from, setFrom] = useState(initial?.from ?? 9);
+  const [to, setTo] = useState(initial?.to ?? 18);
+
+  useEffect(() => {
+    onSelectionChange?.({ date, hourly, from, to });
+  }, [date, hourly, from, to, onSelectionChange]);
 
   const invalidRange = hourly && to <= from;
   const canBook = placeLabel !== null && !invalidRange;
@@ -61,7 +71,7 @@ export default function BookingPanel({ placeLabel, onBook }: Props) {
 
       <Calendar value={date} onChange={setDate} disabledDate={isDisabled} />
 
-      <div style={{ border: "1px dashed #d9d9d9", borderRadius: 8, padding: 12, fontSize: 12, margin: "12px 0" }}>
+      <div style={{ border: `1px dashed ${token.colorBorder}`, borderRadius: 8, padding: 12, fontSize: 12, margin: "12px 0" }}>
         {placeLabel
           ? `Selected ${date.format("DD MMM")}, place ${placeLabel}, ${when}`
           : `Selected ${date.format("DD MMM")}. Please select place or another date`}
