@@ -1,6 +1,10 @@
 import { clearTokens, getTokens, saveTokens, type Tokens } from "./tokens";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/v1";
+const LOCAL_API_URL = "http://localhost:8000/api/v1";
+const PRODUCTION_API_URL = "https://opractica-office-booking-api.onrender.com/api/v1";
+
+const API_URL =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? LOCAL_API_URL : PRODUCTION_API_URL);
 
 export class ApiError extends Error {
   status: number;
