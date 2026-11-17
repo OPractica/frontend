@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
 import dayjs from "dayjs";
 import updateLocale from "dayjs/plugin/updateLocale";
-import { Avatar, Badge, Button, Tooltip, Typography, theme as antdTheme } from "antd";
+import { Avatar, Badge, Button, Dropdown, Tooltip, Typography, theme as antdTheme } from "antd";
 import {
   AppstoreOutlined,
   BellOutlined,
   CalendarOutlined,
   EnvironmentOutlined,
+  GlobalOutlined,
   LoginOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -20,6 +21,8 @@ import MyBookingsPage from "../pages/MyBookingsPage/MyBookingsPage";
 import OfficeList from "../features/office-list/OfficeList";
 import { AuthProvider, LoginModal, useAuth, type User } from "../features/auth/auth";
 import { ThemeProvider, useTheme } from "../features/theme/theme";
+import { LanguageProvider, useLanguage, type Lang } from "../features/language/language";
+import { LANGUAGES } from "../features/language/translations";
 import {
   NotificationsDrawer,
   NotificationsProvider,
@@ -37,10 +40,10 @@ const ORANGE = "#ff7900";
 type View = "offices" | "booking" | "mine";
 type Choice = { office: Office; floor: Floor };
 
-const NAV: { key: View; label: string; icon: ReactNode }[] = [
-  { key: "offices", label: "Offices", icon: <AppstoreOutlined /> },
-  { key: "booking", label: "Book a place", icon: <EnvironmentOutlined /> },
-  { key: "mine", label: "My bookings", icon: <CalendarOutlined /> },
+const NAV: { key: View; icon: ReactNode }[] = [
+  { key: "offices", icon: <AppstoreOutlined /> },
+  { key: "booking", icon: <EnvironmentOutlined /> },
+  { key: "mine", icon: <CalendarOutlined /> },
 ];
 
 type RailButtonProps = {
@@ -103,6 +106,7 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
   const { isGuest, logout } = useAuth();
   const { unread } = useNotifications();
   const { isDark, toggle } = useTheme();
+  const { lang, t, setLang } = useLanguage();
   const { token } = antdTheme.useToken();
   const [collapsed, setCollapsed] = useState(true);
 
@@ -125,7 +129,7 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
       >
         <Button
           type="text"
-          aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+          aria-label={collapsed ? t.menu.expand : t.menu.collapse}
           icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           onClick={() => setCollapsed(!collapsed)}
           style={{
@@ -140,7 +144,7 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
         {NAV.map((item) => (
           <RailButton
             key={item.key}
-            label={item.label}
+            label={t.menu[item.key]}
             icon={item.icon}
             collapsed={collapsed}
             active={view === item.key}
@@ -148,7 +152,7 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
           />
         ))}
         <RailButton
-          label="Notifications"
+          label={t.menu.notifications}
           icon={<BellOutlined />}
           collapsed={collapsed}
           badge={unread}
@@ -157,8 +161,28 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
 
         <div style={{ flex: 1 }} />
 
+        <Dropdown
+          trigger={["click"]}
+          placement="topLeft"
+          menu={{
+            items: LANGUAGES.map((l) => ({ key: l.key, label: l.label })),
+            selectable: true,
+            selectedKeys: [lang],
+            onClick: ({ key }) => setLang(key as Lang),
+          }}
+        >
+          <div>
+            <RailButton
+              label={`${t.menu.language}: ${LANGUAGES.find((l) => l.key === lang)?.label}`}
+              icon={<GlobalOutlined />}
+              collapsed={collapsed}
+              onClick={() => {}}
+            />
+          </div>
+        </Dropdown>
+
         <RailButton
-          label={isDark ? "Light mode" : "Dark mode"}
+          label={isDark ? t.menu.lightMode : t.menu.darkMode}
           icon={isDark ? <SunOutlined /> : <MoonOutlined />}
           collapsed={collapsed}
           onClick={toggle}
@@ -174,7 +198,7 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
             minWidth: 0,
           }}
         >
-          <Tooltip title={isGuest ? "Guest (not signed in)" : `${user.name} (${user.email})`} placement="right">
+          <Tooltip title={isGuest ? t.menu.guest : `${user.name} (${user.email})`} placement="right">
             <Avatar style={{ background: isGuest ? "#bfbfbf" : ORANGE, flex: "0 0 auto" }} icon={isGuest ? <UserOutlined /> : undefined}>
               {isGuest ? null : user.name[0]?.toUpperCase()}
             </Avatar>
@@ -182,18 +206,18 @@ function Shell({ user, view, onView, onOpenNotifications, onSignIn, children }: 
           {!collapsed && (
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {user.name}
+                {isGuest ? t.menu.guestName : user.name}
               </div>
               <div style={{ fontSize: 11, color: token.colorTextTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {isGuest ? "Not signed in" : user.email}
+                {isGuest ? t.menu.notSignedIn : user.email}
               </div>
             </div>
           )}
         </div>
         {isGuest ? (
-          <RailButton label="Sign in" icon={<LoginOutlined />} collapsed={collapsed} accent onClick={onSignIn} />
+          <RailButton label={t.menu.signIn} icon={<LoginOutlined />} collapsed={collapsed} accent onClick={onSignIn} />
         ) : (
-          <RailButton label="Sign out" icon={<LogoutOutlined />} collapsed={collapsed} onClick={logout} />
+          <RailButton label={t.menu.signOut} icon={<LogoutOutlined />} collapsed={collapsed} onClick={logout} />
         )}
       </nav>
 
@@ -267,11 +291,13 @@ function AppWithUser() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BookingsProvider>
-          <AppWithUser />
-        </BookingsProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <BookingsProvider>
+            <AppWithUser />
+          </BookingsProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }
