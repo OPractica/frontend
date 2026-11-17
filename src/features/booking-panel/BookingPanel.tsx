@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Select, Switch, theme as antdTheme } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { Calendar } from "../../shared/ui/molecules/Calendar";
+import { useLanguage } from "../../shared/i18n/language";
 
 export type BookingSelection = {
   date: Dayjs;
@@ -38,8 +39,12 @@ const firstWorkingDay = (): Dayjs => {
 
 const pad = (h: number) => String(h).padStart(2, "0");
 
+// "17 ноября" -> "17 Ноября": luna cu majusculă, în toate limbile
+const dayMonth = (d: Dayjs) => d.format("D MMMM").replace(/ (\S)/, (_, c: string) => ` ${c.toUpperCase()}`);
+
 export default function BookingPanel({ placeLabel, onBook, onSelectionChange, initial }: Props) {
   const { token } = antdTheme.useToken();
+  const { t } = useLanguage();
   const [date, setDate] = useState<Dayjs>(initial?.date ?? firstWorkingDay());
   const [hourly, setHourly] = useState(initial?.hourly ?? false);
   const [from, setFrom] = useState(initial?.from ?? 9);
@@ -57,28 +62,28 @@ export default function BookingPanel({ placeLabel, onBook, onSelectionChange, in
     <div style={{ width: 320 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <Switch checked={hourly} onChange={setHourly} />
-        <span>Hourly</span>
+        <span>{t.panel.hourly}</span>
       </div>
 
       {hourly && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <Select value={from} onChange={setFrom} options={HOURS} style={{ width: 100 }} />
-          <span>to</span>
+          <span>{t.panel.to}</span>
           <Select value={to} onChange={setTo} options={HOURS} style={{ width: 100 }} />
         </div>
       )}
-      {invalidRange && <div style={{ color: "#cf1322", marginBottom: 8 }}>End time must be after start time</div>}
+      {invalidRange && <div style={{ color: "#cf1322", marginBottom: 8 }}>{t.panel.invalidRange}</div>}
 
       <Calendar value={date} onChange={setDate} disabledDate={isDisabled} />
 
       <div style={{ border: `1px dashed ${token.colorBorder}`, borderRadius: 8, padding: 12, fontSize: 12, margin: "12px 0" }}>
         {placeLabel
-          ? `Selected ${date.format("DD MMM")}, place ${placeLabel}, ${when}`
-          : `Selected ${date.format("DD MMM")}. Please select place or another date`}
+          ? t.panel.selectedPlace(dayMonth(date), placeLabel, when)
+          : t.panel.selectPlace(dayMonth(date))}
       </div>
 
       <Button type="primary" block disabled={!canBook} onClick={() => onBook({ date, hourly, from, to })}>
-        Book
+        {t.panel.book}
       </Button>
     </div>
   );

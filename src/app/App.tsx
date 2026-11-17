@@ -21,8 +21,8 @@ import MyBookingsPage from "../pages/MyBookingsPage/MyBookingsPage";
 import OfficeList from "../features/office-list/OfficeList";
 import { AuthProvider, LoginModal, useAuth, type User } from "../features/auth/auth";
 import { ThemeProvider, useTheme } from "../features/theme/theme";
-import { LanguageProvider, useLanguage, type Lang } from "../features/language/language";
-import { LANGUAGES } from "../features/language/translations";
+import { LanguageProvider, useLanguage, type Lang } from "../shared/i18n/language";
+import { LANGUAGES } from "../shared/i18n/translations";
 import {
   NotificationsDrawer,
   NotificationsProvider,

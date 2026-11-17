@@ -18,14 +18,23 @@ const en = {
     expand: "Expand menu",
     collapse: "Collapse menu",
   },
+  panel: {
+    hourly: "Hourly",
+    to: "to",
+    invalidRange: "End time must be after start time",
+    selectedPlace: (date: string, place: string, time: string) => `Selected ${date}, place ${place}, ${time}`,
+    selectPlace: (date: string) => `Selected ${date}. Please select a place or another date`,
+    book: "Book",
+  },
 };
 
+ 
 export type Dict = typeof en;
 
 const ro: Dict = {
   menu: {
     offices: "Oficii",
-    booking: "Rezervă un loc",
+    booking: "Rezervați un loc",
     mine: "Rezervările mele",
     notifications: "Notificări",
     lightMode: "Temă deschisă",
@@ -39,7 +48,16 @@ const ro: Dict = {
     expand: "Extinde meniul",
     collapse: "Restrânge meniul",
   },
+  panel: {
+    hourly: "Pe ore",
+    to: "până la",
+    invalidRange: "Ora de sfârșit trebuie să fie după ora de început",
+    selectedPlace: (date, place, time) => `Selectat ${date}, locul ${place}, ${time}`,
+    selectPlace: (date) => `Selectat ${date}. Alegeți un loc sau altă dată`,
+    book: "Rezervați",
+  },
 };
+
 
 const ru: Dict = {
   menu: {
@@ -58,7 +76,16 @@ const ru: Dict = {
     expand: "Развернуть меню",
     collapse: "Свернуть меню",
   },
+  panel: {
+    hourly: "По часам",
+    to: "до",
+    invalidRange: "Время окончания должно быть позже времени начала",
+    selectedPlace: (date, place, time) => `Выбрано ${date}, место ${place}, ${time}`,
+    selectPlace: (date) => `Выбрано ${date}. Выберите место или другую дату`,
+    book: "Забронировать",
+  },
 };
+
 
 export const DICTS: Record<Lang, Dict> = { en, ro, ru };
 
