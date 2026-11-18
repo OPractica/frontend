@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Button, Popconfirm, Table, Tag, Typography, message, type TableColumnsType } from "antd";
-import { cancelBooking, fetchMyBookings, inOfficeTime, type ApiBooking } from "../../entities/booking/bookingsApi";
+import { cancelBooking, checkIn, fetchMyBookings, inOfficeTime, type ApiBooking } from "../../entities/booking/bookingsApi";
+import { checkInState } from "../../entities/booking/checkIn";
 import { locationOf } from "../../entities/office/offices";
 import { fetchSeats } from "../../entities/seat/seatsApi";
 import { useAuth } from "../../features/auth/auth";
 import { useNotifications } from "../../features/notifications/notifications";
+import { CheckInButton } from "../../features/check-in";
+import { ApiError } from "../../shared/api/client";
 import { useLanguage } from "../../shared/i18n/language";
 import { floorName, longDate } from "../../shared/i18n/format";
 
@@ -26,6 +29,26 @@ export default function MyBookingsPage() {
   const [loading, setLoading] = useState(!isGuest);
   // Crește după fiecare anulare, ca lista să fie cerută din nou
   const [reload, setReload] = useState(0);
+  // Rezervarea pentru care se trimite acum check-in-ul
+  const [checkingId, setCheckingId] = useState<number | null>(null);
+
+  // Ora de acum, actualizată la 30 de secunde, ca butonul de check-in să-și schimbe singur starea
+  const [now, setNow] = useState(() => inOfficeTime(new Date().toISOString()));
+  useEffect(() => {
+    const id = setInterval(() => setNow(inOfficeTime(new Date().toISOString())), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // O rezervare fără check-in la timp e anulată de backend în cel mult un minut;
+  // cât timp există una expirată, lista se cere din nou, ca ea să dispară.
+  const hasExpired = bookings.some(
+    (b) => checkInState(inOfficeTime(b.starts_at), now, b.is_checked_in) === "expired"
+  );
+  useEffect(() => {
+    if (!hasExpired) return;
+    const id = setInterval(() => setReload((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, [hasExpired]);
 
   useEffect(() => {
     if (isGuest) return;
@@ -69,12 +92,44 @@ export default function MyBookingsPage() {
     setReload((n) => n + 1);
   };
 
+  const handleCheckIn = async (b: ApiBooking) => {
+    setCheckingId(b.id);
+    try {
+      const updated = await checkIn(b.id);
+      setBookings((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      messageApi.success(t.checkIn.success(placeOf(b)));
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      if (status === 422) messageApi.error(t.checkIn.notYet);
+      else if (status === 400 || status === 404) {
+        // fereastra a trecut, rezervarea a fost anulată sau confirmată deja: lista se ia din nou
+        messageApi.error(t.checkIn.notPossible);
+        setReload((n) => n + 1);
+      } else messageApi.error(t.checkIn.failed);
+    } finally {
+      setCheckingId(null);
+    }
+  };
+
   const columns: TableColumnsType<ApiBooking> = [
     { title: t.mine.place, key: "place", render: (_, b) => placeOf(b) },
     { title: t.mine.location, key: "location", render: () => locationOf(BOOKABLE_FLOOR_ID, (f) => floorName(t, f)) },
     { title: t.mine.date, key: "date", render: (_, b) => longDate(inOfficeTime(b.starts_at)) },
     { title: t.mine.time, key: "time", render: (_, b) => timeOf(b) },
     { title: "", key: "status", render: () => <Tag color="orange">{t.mine.upcoming}</Tag> },
+    {
+      title: "",
+      key: "checkin",
+      render: (_, b) => (
+        <CheckInButton
+          start={inOfficeTime(b.starts_at)}
+          now={now}
+          checkedIn={b.is_checked_in}
+          busy={checkingId === b.id}
+          onCheckIn={() => handleCheckIn(b)}
+        />
+      ),
+    },
     {
       title: "",
       key: "actions",
