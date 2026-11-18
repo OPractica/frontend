@@ -3,6 +3,7 @@ import { Button, Select, Switch, theme as antdTheme } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { Calendar } from "../../shared/ui/molecules/Calendar";
 import { useLanguage } from "../../shared/i18n/language";
+import { dayMonth } from "../../shared/i18n/format";
 
 export type BookingSelection = {
   date: Dayjs;
@@ -38,9 +39,6 @@ const firstWorkingDay = (): Dayjs => {
 };
 
 const pad = (h: number) => String(h).padStart(2, "0");
-
-// "17 ноября" -> "17 Ноября": luna cu majusculă, în toate limbile
-const dayMonth = (d: Dayjs) => d.format("D MMMM").replace(/ (\S)/, (_, c: string) => ` ${c.toUpperCase()}`);
 
 export default function BookingPanel({ placeLabel, onBook, onSelectionChange, initial }: Props) {
   const { token } = antdTheme.useToken();

@@ -5,6 +5,8 @@ import { locationOf } from "../../entities/office/offices";
 import { fetchSeats } from "../../entities/seat/seatsApi";
 import { useAuth } from "../../features/auth/auth";
 import { useNotifications } from "../../features/notifications/notifications";
+import { useLanguage } from "../../shared/i18n/language";
+import { floorName, longDate } from "../../shared/i18n/format";
 
 // Backendul are locuri doar pentru etajul cu plan desenat
 const BOOKABLE_FLOOR_ID = "zity-mall-7";
@@ -14,6 +16,7 @@ const timeOf = (b: ApiBooking) =>
 
 export default function MyBookingsPage() {
   const { isGuest } = useAuth();
+  const { t } = useLanguage();
   const { push } = useNotifications();
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -35,7 +38,7 @@ export default function MyBookingsPage() {
         setLabels(Object.fromEntries(seats.map((s) => [s.id, s.label])));
       })
       .catch(() => {
-        if (!cancelled) messageApi.error("Couldn't load your bookings. Try again.");
+        if (!cancelled) messageApi.error(t.mine.loadFailed);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -44,7 +47,7 @@ export default function MyBookingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [isGuest, reload, messageApi]);
+  }, [isGuest, reload, messageApi, t]);
 
   const placeOf = (b: ApiBooking) => labels[b.seat_id] ?? `#${b.seat_id}`;
 
@@ -52,35 +55,39 @@ export default function MyBookingsPage() {
     try {
       await cancelBooking(b.id);
     } catch {
-      messageApi.error("Couldn't cancel the booking. Try again.");
+      messageApi.error(t.mine.cancelFailed);
       return;
     }
+    const start = inOfficeTime(b.starts_at);
     push({
       kind: "cancelled",
-      text: `${placeOf(b)} cancelled for ${inOfficeTime(b.starts_at).format("DD MMM")}, ${timeOf(b)}`,
+      place: placeOf(b),
+      date: start.format("YYYY-MM-DD"),
+      from: start.format("HH:mm"),
+      to: inOfficeTime(b.ends_at).format("HH:mm"),
     });
     setReload((n) => n + 1);
   };
 
   const columns: TableColumnsType<ApiBooking> = [
-    { title: "Place", key: "place", render: (_, b) => placeOf(b) },
-    { title: "Location", key: "location", render: () => locationOf(BOOKABLE_FLOOR_ID) },
-    { title: "Date", key: "date", render: (_, b) => inOfficeTime(b.starts_at).format("ddd, DD MMM YYYY") },
-    { title: "Time", key: "time", render: (_, b) => timeOf(b) },
-    { title: "", key: "status", render: () => <Tag color="orange">Upcoming</Tag> },
+    { title: t.mine.place, key: "place", render: (_, b) => placeOf(b) },
+    { title: t.mine.location, key: "location", render: () => locationOf(BOOKABLE_FLOOR_ID, (f) => floorName(t, f)) },
+    { title: t.mine.date, key: "date", render: (_, b) => longDate(inOfficeTime(b.starts_at)) },
+    { title: t.mine.time, key: "time", render: (_, b) => timeOf(b) },
+    { title: "", key: "status", render: () => <Tag color="orange">{t.mine.upcoming}</Tag> },
     {
       title: "",
       key: "actions",
       align: "right",
       render: (_, b) => (
         <Popconfirm
-          title="Cancel this booking?"
-          okText="Cancel booking"
-          cancelText="Keep"
+          title={t.mine.confirm}
+          okText={t.mine.confirmOk}
+          cancelText={t.mine.keep}
           onConfirm={() => handleCancel(b)}
         >
           <Button size="small" danger>
-            Cancel
+            {t.mine.cancel}
           </Button>
         </Popconfirm>
       ),
@@ -91,7 +98,7 @@ export default function MyBookingsPage() {
     <div style={{ background: "#fff", border: "1px solid #ececec", borderRadius: 8, padding: 16 }}>
       {contextHolder}
       <Typography.Title level={4} style={{ marginTop: 0 }}>
-        My bookings
+        {t.menu.mine}
       </Typography.Title>
       <Table<ApiBooking>
         rowKey="id"
@@ -100,7 +107,7 @@ export default function MyBookingsPage() {
         loading={loading}
         pagination={false}
         scroll={{ x: true }}
-        locale={{ emptyText: isGuest ? "Sign in to see your bookings." : "No bookings yet. Pick a place on the map." }}
+        locale={{ emptyText: isGuest ? t.mine.signInToSee : t.mine.empty }}
       />
     </div>
   );

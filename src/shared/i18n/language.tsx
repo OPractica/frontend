@@ -3,9 +3,9 @@ import dayjs from "dayjs";
 import "dayjs/locale/ro";
 import "dayjs/locale/ru";
 import { ConfigProvider } from "antd";
-import enUS from "antd/locale/en_US";
-import roRO from "antd/locale/ro_RO";
-import ruRU from "antd/locale/ru_RU";
+import enUS from "antd/es/locale/en_US";
+import roRO from "antd/es/locale/ro_RO";
+import ruRU from "antd/es/locale/ru_RU";
 import { DICTS, type Dict } from "./translations";
 
 export type Lang = "ro" | "ru" | "en";

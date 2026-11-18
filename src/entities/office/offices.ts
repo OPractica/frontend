@@ -46,10 +46,10 @@ export const DEFAULT_CHOICE: { office: Office; floor: Floor } = (() => {
 })();
 
 /** „Zity Mall · 7th floor · Block A” pentru un ID de etaj. */
-export function locationOf(floorId: string): string {
+export function locationOf(floorId: string, nameOf: (floor: Floor) => string = (f) => f.label): string {
   for (const office of OFFICES) {
     const floor = office.floors.find((f) => f.id === floorId);
-    if (floor) return `${office.name} · ${floor.label}`;
+    if (floor) return `${office.name} · ${nameOf(floor)}`;
   }
   return floorId;
 }

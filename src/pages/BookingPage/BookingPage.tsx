@@ -13,20 +13,14 @@ import { createBooking, officeTime } from "../../entities/booking/bookingsApi";
 import { fetchAvailability, fetchSeats } from "../../entities/seat/seatsApi";
 import { ApiError } from "../../shared/api/client";
 import { OFFICES, type Floor, type Office } from "../../entities/office/offices";
+import { useLanguage } from "../../shared/i18n/language";
+import { dayMonth, floorName } from "../../shared/i18n/format";
 
 const ORANGE = "#ff7900";
 const pad = (h: number) => String(h).padStart(2, "0");
 
-const ATTR_LABEL: Record<SeatAttribute, string> = {
-  window: "Window",
-  quiet: "Quiet zone",
-  "dual-monitor": "Two monitors",
-  dock: "Dock station",
-};
-
 // Aceleași reguli ca în calendar: nu în trecut, nu sâmbăta și duminica
 const isBlocked = (d: Dayjs) => d.isBefore(dayjs(), "day") || d.day() === 0 || d.day() === 6;
-
 
 type Props = {
   office: Office;
@@ -36,6 +30,7 @@ type Props = {
 
 export default function BookingPage({ office, floor, onChangeFloor }: Props) {
   const { isGuest } = useAuth();
+  const { t } = useLanguage();
   const { push } = useNotifications();
   const [messageApi, contextHolder] = message.useMessage();
   const { token } = antdTheme.useToken();
@@ -56,9 +51,6 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
   const [aiText, setAiText] = useState("");
   const [aiNote, setAiNote] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
-
-  // Ce este ocupat depinde de etaj, dată și orele alese în calendar
-
 
   // Numărul (id) fiecărui loc din backend, după nume; e nevoie de el la rezervare
   const [seatIds, setSeatIds] = useState<Record<string, number>>({});
@@ -92,7 +84,6 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       cancelled = true;
     };
   }, [selection, reload]);
-  
 
   const highlighting = attrs.length > 0 || kind !== null;
   const suggestedIds = useMemo(() => {
@@ -130,23 +121,23 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       const date = q.date ? dayjs(q.date) : null;
       const base = date ?? selection?.date ?? dayjs();
       if ((date || q.from !== null) && isBlocked(base)) {
-        setAiNote(`${base.format("DD MMM")} can't be booked (weekend or past date). Pick a working day.`);
+        setAiNote(t.booking.aiBlocked(dayMonth(base)));
         return;
       }
 
       setAttrs(q.attributes);
       setKind(q.kind);
 
-      const parts = [q.kind === "room" ? "meeting room" : q.kind === "booth" ? "phone booth" : "seat"];
-      q.attributes.forEach((a) => parts.push(ATTR_LABEL[a].toLowerCase()));
+      const parts = [q.kind === "room" ? t.booking.kindRoom : q.kind === "booth" ? t.booking.kindBooth : t.booking.kindSeat];
+      q.attributes.forEach((a) => parts.push(t.booking.attrs[a].toLowerCase()));
       if (date || q.from !== null) {
         setInitial({ date: base, hourly: q.from !== null, from: q.from ?? 9, to: q.to ?? 18 });
         setPanelKey((k) => k + 1);
-        parts.push(base.format("DD MMM"), q.from !== null ? `${pad(q.from)}:00–${pad(q.to ?? 18)}:00` : "all day");
+        parts.push(dayMonth(base), q.from !== null ? `${pad(q.from)}:00–${pad(q.to ?? 18)}:00` : t.booking.allDay);
       }
       setAiNote(q.message ?? parts.join(" · "));
     } catch (e) {
-      setAiNote(e instanceof AiNotConnectedError ? "AI search isn't connected yet." : "AI search failed. Try again.");
+      setAiNote(e instanceof AiNotConnectedError ? t.booking.aiNotConnected : t.booking.aiFailed);
     } finally {
       setAiBusy(false);
     }
@@ -155,12 +146,12 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
   const handleBook = async (sel: BookingSelection) => {
     if (!selectedPlace) return;
     if (isGuest) {
-      messageApi.warning("Sign in to book a place.");
+      messageApi.warning(t.booking.signInToBook);
       return;
     }
     const seatId = seatIds[selectedPlace];
     if (seatId === undefined) {
-      messageApi.error(`${selectedPlace} can't be booked yet.`);
+      messageApi.error(t.booking.cantBook(selectedPlace));
       return;
     }
 
@@ -169,16 +160,23 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       await createBooking(seatId, officeTime(interval.date, interval.from), officeTime(interval.date, interval.to));
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
-      if (status === 401) messageApi.error("Your session expired. Sign out and sign in again.");
-      else if (status === 409) messageApi.error(`${selectedPlace} is already booked for that time.`);
-      else messageApi.error(e instanceof ApiError ? e.message : "Booking failed. Try again.");
+      if (status === 401) messageApi.error(t.booking.sessionExpired);
+      else if (status === 409) messageApi.error(t.booking.alreadyBooked(selectedPlace));
+      else messageApi.error(t.booking.bookFailed);
       setReload((n) => n + 1);
       return;
     }
 
-    const when = `${sel.date.format("DD MMM")}, ${pad(interval.from)}:00–${pad(interval.to)}:00`;
-    messageApi.success(`Place ${selectedPlace} booked for ${when}`);
-    push({ kind: "booked", text: `${selectedPlace} booked for ${when} · ${office.name}, ${floor.label}` });
+    const when = `${dayMonth(sel.date)}, ${pad(interval.from)}:00–${pad(interval.to)}:00`;
+    messageApi.success(t.booking.booked(selectedPlace, when));
+    push({
+      kind: "booked",
+      place: selectedPlace,
+      date: interval.date,
+      from: `${pad(interval.from)}:00`,
+      to: `${pad(interval.to)}:00`,
+      floorId: floor.id,
+    });
     setPlace(null); // după rezervare, locul se deselectează
     setReload((n) => n + 1);
   };
@@ -200,9 +198,9 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
           },
         },
         {
-          title: floor.label,
+          title: floorName(t, floor),
           menu: {
-            items: office.floors.map((f) => ({ key: f.id, label: f.label })),
+            items: office.floors.map((f) => ({ key: f.id, label: floorName(t, f) })),
             selectable: true,
             selectedKeys: [floor.id],
             onClick: ({ key }) => {
@@ -211,7 +209,7 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
             },
           },
         },
-        { title: <span style={{ color: ORANGE }}>Select Place</span> },
+        { title: <span style={{ color: ORANGE }}>{t.booking.selectPlace}</span> },
       ]}
     />
   );
@@ -224,11 +222,11 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
           setAttrs(v as SeatAttribute[]);
           setKind(null);
         }}
-        options={(Object.keys(ATTR_LABEL) as SeatAttribute[]).map((k) => ({ value: k, label: ATTR_LABEL[k] }))}
+        options={(Object.keys(t.booking.attrs) as SeatAttribute[]).map((k) => ({ value: k, label: t.booking.attrs[k] }))}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       />
       <Button size="small" type="link" style={{ alignSelf: "flex-start", padding: 0 }} onClick={clearHighlights}>
-        Clear
+        {t.booking.clear}
       </Button>
     </div>
   );
@@ -236,24 +234,24 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
   const tools = (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
       <Space>
-        <Tooltip title="Search with AI">
+        <Tooltip title={t.booking.aiSearch}>
           <Button
             shape="circle"
             size="large"
             icon={<SearchOutlined />}
             type={aiOpen ? "primary" : "default"}
-            aria-label="Search with AI"
+            aria-label={t.booking.aiSearch}
             style={aiOpen ? undefined : roundButton}
             onClick={() => setAiOpen(!aiOpen)}
           />
         </Tooltip>
-        <Popover trigger="click" placement="bottomRight" title="Highlight places" content={filterContent}>
+        <Popover trigger="click" placement="bottomRight" title={t.booking.highlight} content={filterContent}>
           <Button
             shape="circle"
             size="large"
             icon={<FilterOutlined />}
             type={highlighting ? "primary" : "default"}
-            aria-label="Filter places"
+            aria-label={t.booking.filter}
             style={highlighting ? undefined : roundButton}
           />
         </Popover>
@@ -267,10 +265,10 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
             onSearch={runAi}
-            enterButton="Ask AI"
+            enterButton={t.booking.askAi}
             loading={aiBusy}
-            placeholder="e.g. quiet seat with a window tomorrow 10-14"
-            aria-label="Ask AI to find a place"
+            placeholder={t.booking.aiPlaceholder}
+            aria-label={t.booking.aiAria}
           />
         </div>
       )}
@@ -278,9 +276,9 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       {highlighting && (
         <div style={{ fontSize: 12, color: token.colorTextSecondary, textAlign: "right" }}>
           {aiNote ? `${aiNote} · ` : ""}
-          {suggestedIds.size} available{" "}
+          {t.booking.available(suggestedIds.size)}{" "}
           <Button type="link" size="small" style={{ padding: 0, height: "auto", fontSize: 12 }} onClick={clearHighlights}>
-            Clear
+            {t.booking.clear}
           </Button>
         </div>
       )}
@@ -293,10 +291,7 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     return (
       <div style={{ ...panelStyle, minHeight: 460 }}>
         <div style={{ paddingTop: 6 }}>{breadcrumb}</div>
-        <Empty
-          style={{ marginTop: 96 }}
-          description="Booking is currently unavailable for this floor. Select the 7th floor · Block A to book a place."
-        />
+        <Empty style={{ marginTop: 96 }} description={t.booking.floorUnavailable} />
       </div>
     );
   }

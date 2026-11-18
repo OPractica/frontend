@@ -13,6 +13,7 @@ import {
   type Room,
   type Seat,
 } from './floorPlanData';
+import { useLanguage } from '../../shared/i18n/language';
 import './FloorPlan.css';
 
 export interface FloorPlanProps {
@@ -287,6 +288,7 @@ export function FloorPlan({
   zoomable = true,
   defaultZoom = 75,
 }: FloorPlanProps) {
+  const { t } = useLanguage();
   const selected = seats.find((s) => s.id === selectedId);
   const [zoom, setZoom] = useState(defaultZoom);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -345,23 +347,23 @@ export function FloorPlan({
       </div>
 
       {legendOpen && (
-        <ul className="fp-legend" aria-label="Legend">
-          <li><i className="fp-sw fp-sw--free" />Free</li>
-          <li><i className="fp-sw fp-sw--booked" />Booked</li>
-          <li><i className="fp-sw fp-sw--selected" />Selected</li>
-          <li><i className="fp-sw fp-sw--suggested" />Recommended</li>
-          <li><i className="fp-sw fp-sw--window" />Windows</li>
+        <ul className="fp-legend" aria-label={t.plan.legend}>
+          <li><i className="fp-sw fp-sw--free" />{t.plan.free}</li>
+          <li><i className="fp-sw fp-sw--booked" />{t.plan.booked}</li>
+          <li><i className="fp-sw fp-sw--selected" />{t.plan.selected}</li>
+          <li><i className="fp-sw fp-sw--suggested" />{t.plan.suggested}</li>
+          <li><i className="fp-sw fp-sw--window" />{t.plan.windows}</li>
         </ul>
       )}
 
       {zoomable && (
-        <div className="fp-zoom" role="group" aria-label="Map controls">
+        <div className="fp-zoom" role="group" aria-label={t.plan.controls}>
           <button
             type="button"
             className="fp-round"
-            aria-label="Legend"
+            aria-label={t.plan.legend}
             aria-pressed={legendOpen}
-            title="Legend"
+            title={t.plan.legend}
             onClick={() => setLegendOpen(!legendOpen)}
           >
             i
@@ -369,16 +371,16 @@ export function FloorPlan({
           <button
             type="button"
             className="fp-round fp-round--text"
-            aria-label={`Zoom ${zoom}%, press to reset to ${defaultZoom}%`}
-            title={`Reset to ${defaultZoom}%`}
+            aria-label={t.plan.zoomReset(zoom, defaultZoom)}
+            title={t.plan.resetTo(defaultZoom)}
             onClick={() => setZoom(defaultZoom)}
           >
             {zoom}%
           </button>
-          <button type="button" className="fp-round" aria-label="Zoom out" title="Zoom out" disabled={zoom <= ZOOM_MIN} onClick={() => step(-ZOOM_STEP)}>
+          <button type="button" className="fp-round" aria-label={t.plan.zoomOut} title={t.plan.zoomOut} disabled={zoom <= ZOOM_MIN} onClick={() => step(-ZOOM_STEP)}>
             −
           </button>
-          <button type="button" className="fp-round" aria-label="Zoom in" title="Zoom in" disabled={zoom >= ZOOM_MAX} onClick={() => step(ZOOM_STEP)}>
+          <button type="button" className="fp-round" aria-label={t.plan.zoomIn} title={t.plan.zoomIn} disabled={zoom >= ZOOM_MAX} onClick={() => step(ZOOM_STEP)}>
             +
           </button>
         </div>
