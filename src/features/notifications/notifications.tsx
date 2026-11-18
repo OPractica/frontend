@@ -3,10 +3,29 @@ import dayjs from "dayjs";
 import { Button, Drawer, Empty, List } from "antd";
 import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { useBookings } from "../../entities/booking/bookings";
+import { useLanguage } from "../../shared/i18n/language";
+import { dayMonth, floorName } from "../../shared/i18n/format";
+import { locationOf } from "../../entities/office/offices";
 
 export type NoticeKind = "booked" | "cancelled" | "reminder";
-export type Notice = { id: string; kind: NoticeKind; text: string; createdAt: string; read: boolean };
-type NewNotice = { id?: string; kind: NoticeKind; text: string };
+
+/**
+ * Notificarea ține minte datele (locul, ziua, orele), nu textul gata scris.
+ * Textul se compune la afișare, în limba aleasă atunci, ca la schimbarea limbii să se traducă și notificările vechi.
+ */
+type NoticeData = {
+  place: string;
+  /** Ziua, AAAA-LL-ZZ. */
+  date: string;
+  /** Orele, de forma "09:00". */
+  from: string;
+  to: string;
+  /** Etajul, pentru „unde” (doar la rezervare). */
+  floorId?: string;
+};
+
+export type Notice = NoticeData & { id: string; kind: NoticeKind; createdAt: string; read: boolean };
+type NewNotice = NoticeData & { id?: string; kind: NoticeKind };
 
 type NotificationsApi = {
   items: Notice[];
@@ -17,7 +36,8 @@ type NotificationsApi = {
 };
 
 const NotificationsContext = createContext<NotificationsApi | null>(null);
-const storageKey = (email: string) => `workplace-booking.notifications.v1.${email}`;
+// v2: notificările țin date, nu text (cele din v1 erau texte gata scrise și nu se pot traduce)
+const storageKey = (email: string) => `workplace-booking.notifications.v2.${email}`;
 const pad = (h: number) => String(h).padStart(2, "0");
 
 function load(email: string): Notice[] {
@@ -31,7 +51,10 @@ function load(email: string): Notice[] {
         typeof n === "object" &&
         n !== null &&
         typeof n.id === "string" &&
-        typeof n.text === "string" &&
+        typeof n.place === "string" &&
+        typeof n.date === "string" &&
+        typeof n.from === "string" &&
+        typeof n.to === "string" &&
         typeof n.createdAt === "string" &&
         typeof n.read === "boolean" &&
         (n.kind === "booked" || n.kind === "cancelled" || n.kind === "reminder")
@@ -57,7 +80,7 @@ export function NotificationsProvider({ userEmail, children }: { userEmail: stri
     setItems((prev) => {
       const id = n.id ?? `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       if (prev.some((p) => p.id === id)) return prev;
-      const next: Notice = { id, kind: n.kind, text: n.text, createdAt: new Date().toISOString(), read: false };
+      const next: Notice = { ...n, id, createdAt: new Date().toISOString(), read: false };
       return [next, ...prev].slice(0, 50);
     });
   }, []);
@@ -96,7 +119,10 @@ export function RemindersWatcher({ userEmail }: { userEmail: string }) {
         push({
           id: `reminder-${b.id}`,
           kind: "reminder",
-          text: `Today: ${b.placeId}, ${pad(b.from)}:00–${pad(b.to)}:00`,
+          place: b.placeId,
+          date: b.date,
+          from: `${pad(b.from)}:00`,
+          to: `${pad(b.to)}:00`,
         });
       }
     });
@@ -113,6 +139,18 @@ const ICONS: Record<NoticeKind, ReactNode> = {
 
 export function NotificationsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { items, markAllRead, clear } = useNotifications();
+  const { t } = useLanguage();
+
+  // Textul notificării, în limba de acum
+  const textOf = (n: Notice) => {
+    const when = `${dayMonth(dayjs(n.date))}, ${n.from}–${n.to}`;
+    if (n.kind === "booked") {
+      const where = n.floorId ? locationOf(n.floorId, (f) => floorName(t, f)) : "";
+      return where ? t.booking.bookedNotice(n.place, when, where) : t.booking.booked(n.place, when);
+    }
+    if (n.kind === "cancelled") return t.mine.cancelledNotice(n.place, when);
+    return t.notices.today(n.place, `${n.from}–${n.to}`);
+  };
 
   const close = () => {
     markAllRead(); // ce ai văzut se marchează citit la închidere
@@ -121,20 +159,20 @@ export function NotificationsDrawer({ open, onClose }: { open: boolean; onClose:
 
   return (
     <Drawer
-      title="Notifications"
+      title={t.menu.notifications}
       open={open}
       onClose={close}
       width={380}
       extra={
         items.length > 0 ? (
           <Button size="small" onClick={clear}>
-            Clear all
+            {t.notices.clearAll}
           </Button>
         ) : null
       }
     >
       {items.length === 0 ? (
-        <Empty description="No notifications yet" />
+        <Empty description={t.notices.empty} />
       ) : (
         <List
           itemLayout="horizontal"
@@ -143,8 +181,8 @@ export function NotificationsDrawer({ open, onClose }: { open: boolean; onClose:
             <List.Item key={n.id}>
               <List.Item.Meta
                 avatar={ICONS[n.kind]}
-                title={<span style={{ fontWeight: n.read ? 400 : 600 }}>{n.text}</span>}
-                description={dayjs(n.createdAt).format("DD MMM, HH:mm")}
+                title={<span style={{ fontWeight: n.read ? 400 : 600 }}>{textOf(n)}</span>}
+                description={`${dayMonth(dayjs(n.createdAt))}, ${dayjs(n.createdAt).format("HH:mm")}`}
               />
             </List.Item>
           )}

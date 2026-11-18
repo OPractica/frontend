@@ -26,7 +26,7 @@ export default function Calendar({ value, onChange, disabledDate }: Props) {
       headerRender={({ value: shown, onChange: setShown }) => (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0" }}>
           <Button type="text" icon={<LeftOutlined />} onClick={() => setShown(shown.subtract(1, "month"))} />
-          <span>{shown.format("MMMM YYYY")}</span>
+          <span style={{ textTransform: "capitalize" }}>{shown.format("MMMM YYYY")}</span>
           <Button type="text" icon={<RightOutlined />} onClick={() => setShown(shown.add(1, "month"))} />
         </div>
       )}

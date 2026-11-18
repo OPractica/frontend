@@ -1,6 +1,5 @@
 import { memo, useState, type ReactNode } from 'react';
 import {
-  ATTRIBUTE_LABELS,
   BUILDING,
   DOORS,
   PLANTS,
@@ -8,11 +7,12 @@ import {
   SEATS,
   SEAT_SIZE,
   VIEWBOX,
-  ZONE_LABELS,
   isBookableRoom,
   type Room,
   type Seat,
 } from './floorPlanData';
+import { useLanguage } from '../../shared/i18n/language';
+import type { Dict } from '../../shared/i18n/translations';
 import './FloorPlan.css';
 
 export interface FloorPlanProps {
@@ -47,20 +47,6 @@ const NO_LABELS: Readonly<Record<string, string>> = {};
 
 type PlaceState = 'free' | 'booked' | 'selected' | 'suggested';
 
-const SEAT_STATE_TEXT: Record<PlaceState, string> = {
-  free: 'liber',
-  booked: 'ocupat',
-  selected: 'selectat',
-  suggested: 'recomandat',
-};
-
-const ROOM_STATE_TEXT: Record<PlaceState, string> = {
-  free: 'liberă',
-  booked: 'ocupată',
-  selected: 'selectată',
-  suggested: 'recomandată',
-};
-
 function placeState(
   id: string,
   booked: ReadonlySet<string>,
@@ -77,10 +63,11 @@ function withLabel(text: string, state: PlaceState, bookedLabel?: string): strin
   return state === 'booked' && bookedLabel ? `${text} ${bookedLabel}` : text;
 }
 
-function seatDescription(seat: Seat, state: PlaceState, bookedLabel?: string): string {
-  const parts = [`Loc ${seat.id}`, ZONE_LABELS[seat.zone]];
-  seat.attributes.forEach((a) => parts.push(ATTRIBUTE_LABELS[a]));
-  parts.push(withLabel(SEAT_STATE_TEXT[state], state, bookedLabel));
+// Textul afișat la trecerea mouse-ului peste un loc, în limba aleasă: „Loc A05, Zona A, Lângă fereastră, liber”
+function seatDescription(t: Dict, seat: Seat, state: PlaceState, bookedLabel?: string): string {
+  const parts = [t.plan.seat(seat.id), t.plan.zones[seat.zone]];
+  seat.attributes.forEach((a) => parts.push(t.booking.attrs[a]));
+  parts.push(withLabel(t.plan.seatState[state], state, bookedLabel));
   return parts.join(', ');
 }
 
@@ -92,15 +79,17 @@ interface RoomShapeProps {
 }
 
 function RoomShape({ room, state, bookedLabel, onSelect }: RoomShapeProps) {
+  const { t } = useLanguage();
+  const name = t.plan.rooms[room.id] ?? room.name;
   const bookable = isBookableRoom(room);
   const booked = state === 'booked';
   const cx = room.x + room.w / 2;
   const cy = room.y + room.h / 2;
-  const lines = room.kind === 'booth' ? room.name.split(' ') : room.name.split(' · ');
+  const lines = room.kind === 'booth' ? name.split(' ') : name.split(' · ');
   const small = room.kind === 'booth' || room.kind === 'wc';
   const lineHeight = 11;
   const startY = cy - ((lines.length - 1) * lineHeight) / 2;
-  const description = `${room.name}, ${withLabel(ROOM_STATE_TEXT[state], state, bookedLabel)}`;
+  const description = `${name}, ${withLabel(t.plan.roomState[state], state, bookedLabel)}`;
 
   const activate = () => {
     if (bookable && !booked) onSelect?.(room.id);
@@ -183,6 +172,7 @@ const Base = memo(function Base() {
 
 /** Plante, pereți exteriori și uși, desenate peste camere. */
 const Overlay = memo(function Overlay() {
+  const { t } = useLanguage();
   const { x, y, w, h } = BUILDING;
   return (
     <>
@@ -204,7 +194,7 @@ const Overlay = memo(function Overlay() {
             y={d.side === 'top' ? d.y - 16 : d.y + 24}
             textAnchor="middle"
           >
-            {d.label}
+            {t.plan.entrance}
           </text>
         </g>
       ))}
@@ -220,6 +210,8 @@ interface SeatShapeProps {
 }
 
 const SeatShape = memo(function SeatShape({ seat, state, bookedLabel, onSelect }: SeatShapeProps) {
+  const { t } = useLanguage();
+  const description = seatDescription(t, seat, state, bookedLabel);
   const booked = state === 'booked';
   const cx = seat.x + SEAT_SIZE / 2;
   const cy = seat.y + SEAT_SIZE / 2;
@@ -235,7 +227,7 @@ const SeatShape = memo(function SeatShape({ seat, state, bookedLabel, onSelect }
       tabIndex={booked ? -1 : 0}
       aria-pressed={state === 'selected'}
       aria-disabled={booked}
-      aria-label={seatDescription(seat, state, bookedLabel)}
+      aria-label={description}
       data-seat-id={seat.id}
       onClick={activate}
       onKeyDown={(e) => {
@@ -245,7 +237,7 @@ const SeatShape = memo(function SeatShape({ seat, state, bookedLabel, onSelect }
         }
       }}
     >
-      <title>{seatDescription(seat, state, bookedLabel)}</title>
+      <title>{description}</title>
       {state === 'suggested' && (
         <rect
           className="fp-pulse"
@@ -287,6 +279,7 @@ export function FloorPlan({
   zoomable = true,
   defaultZoom = 75,
 }: FloorPlanProps) {
+  const { t } = useLanguage();
   const selected = seats.find((s) => s.id === selectedId);
   const [zoom, setZoom] = useState(defaultZoom);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -306,7 +299,7 @@ export function FloorPlan({
         className="fp-svg"
         viewBox={`${VIEWBOX.x} ${VIEWBOX.y} ${VIEWBOX.w} ${VIEWBOX.h}`}
         role="group"
-        aria-label="Schița etajului cu locurile de lucru, sălile și cabinele"
+        aria-label={t.plan.mapLabel}
       >
         <Base />
 
@@ -345,23 +338,23 @@ export function FloorPlan({
       </div>
 
       {legendOpen && (
-        <ul className="fp-legend" aria-label="Legend">
-          <li><i className="fp-sw fp-sw--free" />Free</li>
-          <li><i className="fp-sw fp-sw--booked" />Booked</li>
-          <li><i className="fp-sw fp-sw--selected" />Selected</li>
-          <li><i className="fp-sw fp-sw--suggested" />Recommended</li>
-          <li><i className="fp-sw fp-sw--window" />Windows</li>
+        <ul className="fp-legend" aria-label={t.plan.legend}>
+          <li><i className="fp-sw fp-sw--free" />{t.plan.free}</li>
+          <li><i className="fp-sw fp-sw--booked" />{t.plan.booked}</li>
+          <li><i className="fp-sw fp-sw--selected" />{t.plan.selected}</li>
+          <li><i className="fp-sw fp-sw--suggested" />{t.plan.suggested}</li>
+          <li><i className="fp-sw fp-sw--window" />{t.plan.windows}</li>
         </ul>
       )}
 
       {zoomable && (
-        <div className="fp-zoom" role="group" aria-label="Map controls">
+        <div className="fp-zoom" role="group" aria-label={t.plan.controls}>
           <button
             type="button"
             className="fp-round"
-            aria-label="Legend"
+            aria-label={t.plan.legend}
             aria-pressed={legendOpen}
-            title="Legend"
+            title={t.plan.legend}
             onClick={() => setLegendOpen(!legendOpen)}
           >
             i
@@ -369,16 +362,16 @@ export function FloorPlan({
           <button
             type="button"
             className="fp-round fp-round--text"
-            aria-label={`Zoom ${zoom}%, press to reset to ${defaultZoom}%`}
-            title={`Reset to ${defaultZoom}%`}
+            aria-label={t.plan.zoomReset(zoom, defaultZoom)}
+            title={t.plan.resetTo(defaultZoom)}
             onClick={() => setZoom(defaultZoom)}
           >
             {zoom}%
           </button>
-          <button type="button" className="fp-round" aria-label="Zoom out" title="Zoom out" disabled={zoom <= ZOOM_MIN} onClick={() => step(-ZOOM_STEP)}>
+          <button type="button" className="fp-round" aria-label={t.plan.zoomOut} title={t.plan.zoomOut} disabled={zoom <= ZOOM_MIN} onClick={() => step(-ZOOM_STEP)}>
             −
           </button>
-          <button type="button" className="fp-round" aria-label="Zoom in" title="Zoom in" disabled={zoom >= ZOOM_MAX} onClick={() => step(ZOOM_STEP)}>
+          <button type="button" className="fp-round" aria-label={t.plan.zoomIn} title={t.plan.zoomIn} disabled={zoom >= ZOOM_MAX} onClick={() => step(ZOOM_STEP)}>
             +
           </button>
         </div>
