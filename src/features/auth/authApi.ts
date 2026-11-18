@@ -8,7 +8,16 @@ import { ApiError, request } from "../../shared/api/client";
 import { clearTokens, getTokens, saveTokens, type Tokens } from "../../shared/api/tokens";
 
 export type User = { email: string; name: string };
-export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+/** Ce n-a mers; textul în limba aleasă îl dă fereastra, din traduceri (t.auth.errors). */
+export type AuthError =
+  | "wrongCredentials"
+  | "signInFailed"
+  | "invalidEmail"
+  | "shortPassword"
+  | "emailTaken"
+  | "registerFailed";
+
+export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: AuthError };
 
 /**
  * Domeniile acceptate la înregistrare. Listă goală = orice adresă.
@@ -45,15 +54,15 @@ export async function signIn(emailInput: string, password: string): Promise<Resu
     const me = await request<ApiUser>("/auth/me");
     return { ok: true, user: { email: me.email, name: me.full_name } };
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401) return { ok: false, error: "Wrong e-mail or password." };
-    return { ok: false, error: "Sign in failed. Try again." };
+    if (e instanceof ApiError && e.status === 401) return { ok: false, error: "wrongCredentials" };
+    return { ok: false, error: "signInFailed" };
   }
 }
 
 export async function register(emailInput: string, password: string, fullName: string): Promise<Result<{ user: User }>> {
   const email = cleanEmail(emailInput);
-  if (!isAllowedEmail(email)) return { ok: false, error: "Enter a valid e-mail address." };
-  if (password.length < 6) return { ok: false, error: "The password needs at least 6 characters." };
+  if (!isAllowedEmail(email)) return { ok: false, error: "invalidEmail" };
+  if (password.length < 6) return { ok: false, error: "shortPassword" };
 
   try {
     await request<ApiUser>("/auth/register", {
@@ -62,9 +71,9 @@ export async function register(emailInput: string, password: string, fullName: s
     });
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) {
-      return { ok: false, error: "This e-mail is already registered. Sign in instead." };
+      return { ok: false, error: "emailTaken"  };
     }
-    return { ok: false, error: "Registration failed. Try again." };
+    return { ok: false, error: "registerFailed" };
   }
   // Înregistrarea nu întoarce tokenuri, deci urmează imediat logarea
   return signIn(email, password);

@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { Alert, Button, Form, Input, Modal, Typography } from "antd";
 import { LockOutlined, MailOutlined, UserOutlined } from "@ant-design/icons";
-import { ALLOWED_DOMAINS, register, signIn, signOut, type User } from "./authApi";
+import { ALLOWED_DOMAINS, register, signIn, signOut, type AuthError, type User } from "./authApi";
+import { useLanguage } from "../../shared/i18n/language";
 
 export type { User };
 
@@ -71,19 +72,15 @@ export function useAuth(): AuthApi {
 
 type Step = "signin" | "register";
 
-const emailRules = [
-  { required: true, message: "Enter your e-mail" },
-  { type: "email" as const, message: "Enter a valid e-mail" },
-];
-
 function AuthFlow({ onDone }: { onDone: () => void }) {
   const { startSession } = useAuth();
+  const { t } = useLanguage();
   const [step, setStep] = useState<Step>("signin");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AuthError | null>(null);
   const [busy, setBusy] = useState(false);
 
   const go = (next: Step) => {
-    setError("");
+    setError(null);
     setStep(next);
   };
 
@@ -105,66 +102,59 @@ function AuthFlow({ onDone }: { onDone: () => void }) {
     onDone();
   };
 
-  
-
- 
-
-  const errorBox = error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} /> : null;
-
-  
+  const errorBox = error ? <Alert type="error" showIcon message={t.auth.errors[error]} style={{ marginBottom: 12 }} /> : null;
 
   const isRegister = step === "register";
   return (
     <>
       <Typography.Paragraph type="secondary">
-        {isRegister
-          ? "Register with your Outlook e-mail."
-          : "Sign in with your Outlook e-mail and password."}
+        {isRegister ? t.auth.registerIntro : t.auth.signInIntro}
       </Typography.Paragraph>
       {errorBox}
-      <Form
-        key={step}
-        layout="vertical"
-        requiredMark={false}
-        
-        onFinish={isRegister ? handleRegister : handleSignIn}
-      >
+      <Form key={step} layout="vertical" requiredMark={false} onFinish={isRegister ? handleRegister : handleSignIn}>
         {isRegister && (
-          <Form.Item name="name" label="Full name" rules={[{ required: true, message: "Enter your name" }]}>
+          <Form.Item name="name" label={t.auth.fullName} rules={[{ required: true, message: t.auth.enterName }]}>
             <Input prefix={<UserOutlined />} autoComplete="name" placeholder="Ana Popescu" />
           </Form.Item>
         )}
-        <Form.Item name="email" label="Outlook e-mail" rules={emailRules}>
+        <Form.Item
+          name="email"
+          label={t.auth.email}
+          rules={[
+            { required: true, message: t.auth.enterEmail },
+            { type: "email", message: t.auth.invalidEmail },
+          ]}
+        >
           <Input prefix={<MailOutlined />} autoComplete="username" placeholder="name@outlook.com" />
         </Form.Item>
         <Form.Item
           name="password"
-          label="Password"
+          label={t.auth.password}
           rules={[
-            { required: true, message: "Enter your password" },
-            ...(isRegister ? [{ min: 6, message: "At least 6 characters" }] : []),
+            { required: true, message: t.auth.enterPassword },
+            ...(isRegister ? [{ min: 6, message: t.auth.minPassword }] : []),
           ]}
         >
           <Input.Password prefix={<LockOutlined />} autoComplete={isRegister ? "new-password" : "current-password"} />
         </Form.Item>
         <Button type="primary" htmlType="submit" block loading={busy}>
-          {isRegister ? "Register" : "Sign in"}
+          {isRegister ? t.auth.register : t.auth.signIn}
         </Button>
       </Form>
       <div style={{ marginTop: 12, textAlign: "center" }}>
         {isRegister ? (
           <Button type="link" onClick={() => go("signin")}>
-            Already registered? Sign in
+            {t.auth.haveAccount}
           </Button>
         ) : (
           <Button type="link" onClick={() => go("register")}>
-            New here? Register
+            {t.auth.newHere}
           </Button>
         )}
       </div>
       {isRegister && ALLOWED_DOMAINS.length > 0 && (
         <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: 0, textAlign: "center" }}>
-          Accepted domains: {ALLOWED_DOMAINS.join(", ")}
+          {t.auth.domains(ALLOWED_DOMAINS.join(", "))}
         </Typography.Paragraph>
       )}
     </>
@@ -176,8 +166,9 @@ function AuthFlow({ onDone }: { onDone: () => void }) {
  * Logare reală (server, e-mail cu cod) se conectează în `authApi.ts`.
  */
 export function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useLanguage();
   return (
-    <Modal open={open} onCancel={onClose} footer={null} title="Account" width={400} destroyOnHidden>
+    <Modal open={open} onCancel={onClose} footer={null} title={t.auth.title} width={400} destroyOnHidden>
       {open && <AuthFlow onDone={onClose} />}
     </Modal>
   );

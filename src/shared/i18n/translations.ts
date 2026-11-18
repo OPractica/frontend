@@ -26,9 +26,34 @@ const en = {
     selectPlace: (date: string) => `Selected ${date}. Please select a place or another date`,
     book: "Book",
   },
+  auth: {
+    title: "Account",
+    signInIntro: "Sign in with your Outlook e-mail and password.",
+    registerIntro: "Register with your Outlook e-mail.",
+    fullName: "Full name",
+    enterName: "Enter your name",
+    email: "Outlook e-mail",
+    enterEmail: "Enter your e-mail",
+    invalidEmail: "Enter a valid e-mail",
+    password: "Password",
+    enterPassword: "Enter your password",
+    minPassword: "At least 6 characters",
+    signIn: "Sign in",
+    register: "Register",
+    haveAccount: "Already registered? Sign in",
+    newHere: "New here? Register",
+    domains: (list: string) => `Accepted domains: ${list}`,
+    errors: {
+      wrongCredentials: "Wrong e-mail or password.",
+      signInFailed: "Sign in failed. Try again.",
+      invalidEmail: "Enter a valid e-mail address.",
+      shortPassword: "The password needs at least 6 characters.",
+      emailTaken: "This e-mail is already registered. Sign in instead.",
+      registerFailed: "Registration failed. Try again.",
+    },
+  },
 };
 
- 
 export type Dict = typeof en;
 
 const ro: Dict = {
@@ -40,8 +65,8 @@ const ro: Dict = {
     lightMode: "Temă deschisă",
     darkMode: "Temă întunecată",
     language: "Limba",
-    signIn: "Autentificare",
-    signOut: "Ieșire",
+    signIn: "Autentificați-vă",
+    signOut: "Deconectați-vă",
     guestName: "Vizitator",
     guest: "Vizitator (neautentificat)",
     notSignedIn: "Neautentificat",
@@ -56,8 +81,33 @@ const ro: Dict = {
     selectPlace: (date) => `Selectat ${date}. Alegeți un loc sau altă dată`,
     book: "Rezervați",
   },
+  auth: {
+    title: "Cont",
+    signInIntro: "Autentificați-vă cu e-mailul Outlook și parola.",
+    registerIntro: "Înregistrați-vă cu e-mailul Outlook.",
+    fullName: "Nume complet",
+    enterName: "Introduceți numele",
+    email: "E-mail Outlook",
+    enterEmail: "Introduceți e-mailul",
+    invalidEmail: "Introduceți un e-mail valid",
+    password: "Parolă",
+    enterPassword: "Introduceți parola",
+    minPassword: "Cel puțin 6 caractere",
+    signIn: "Autentificați-vă",
+    register: "Înregistrați-vă",
+    haveAccount: "Aveți deja cont? Autentificați-vă",
+    newHere: "Sunteți nou? Înregistrați-vă",
+    domains: (list) => `Domenii acceptate: ${list}`,
+    errors: {
+      wrongCredentials: "E-mail sau parolă greșită.",
+      signInFailed: "Autentificarea nu a reușit. Încercați din nou.",
+      invalidEmail: "Introduceți o adresă de e-mail validă.",
+      shortPassword: "Parola trebuie să aibă cel puțin 6 caractere.",
+      emailTaken: "Acest e-mail este deja înregistrat. Autentificați-vă.",
+      registerFailed: "Înregistrarea nu a reușit. Încercați din nou.",
+    },
+  },
 };
-
 
 const ru: Dict = {
   menu: {
@@ -84,8 +134,33 @@ const ru: Dict = {
     selectPlace: (date) => `Выбрано ${date}. Выберите место или другую дату`,
     book: "Забронировать",
   },
+  auth: {
+    title: "Аккаунт",
+    signInIntro: "Войдите с помощью почты Outlook и пароля.",
+    registerIntro: "Зарегистрируйтесь с помощью почты Outlook.",
+    fullName: "Полное имя",
+    enterName: "Введите имя",
+    email: "Почта Outlook",
+    enterEmail: "Введите почту",
+    invalidEmail: "Введите корректную почту",
+    password: "Пароль",
+    enterPassword: "Введите пароль",
+    minPassword: "Не менее 6 символов",
+    signIn: "Войти",
+    register: "Зарегистрироваться",
+    haveAccount: "Уже есть аккаунт? Войти",
+    newHere: "Впервые здесь? Зарегистрироваться",
+    domains: (list) => `Разрешённые домены: ${list}`,
+    errors: {
+      wrongCredentials: "Неверная почта или пароль.",
+      signInFailed: "Не удалось войти. Попробуйте ещё раз.",
+      invalidEmail: "Введите корректный адрес почты.",
+      shortPassword: "Пароль должен содержать не менее 6 символов.",
+      emailTaken: "Эта почта уже зарегистрирована. Войдите.",
+      registerFailed: "Не удалось зарегистрироваться. Попробуйте ещё раз.",
+    },
+  },
 };
-
 
 export const DICTS: Record<Lang, Dict> = { en, ro, ru };
 
