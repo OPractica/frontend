@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import dayjs, { type Dayjs } from "dayjs";
-import { Breadcrumb, Button, Checkbox, Empty, Input, Popover, Space, Tooltip, message, theme as antdTheme } from "antd";
-import { FilterOutlined, SearchOutlined } from "@ant-design/icons";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Breadcrumb, Button, Checkbox, Empty, Popover, message, theme as antdTheme } from "antd";
+import { FilterOutlined } from "@ant-design/icons";
 import { BookingPanel, type BookingSelection } from "../../features/booking-panel";
 import { FloorPlan } from "../../features/floor-plan";
-import { ROOMS, SEATS, type SeatAttribute } from "../../features/floor-plan/floorPlanData";
-import { AiNotConnectedError, askAi, type AiKind } from "../../features/ai-search/aiSearch";
+import { SEATS, type SeatAttribute } from "../../features/floor-plan/floorPlanData";
+import { AiAssistant } from "../../features/ai-assistant";
 import { useNotifications } from "../../features/notifications/notifications";
 import { useAuth } from "../../features/auth/auth";
 import { intervalOf } from "../../entities/booking";
-import { createBooking, officeTime } from "../../entities/booking/bookingsApi";
+import { createBooking, fetchMyBookings, inOfficeTime, officeTime, type ApiBooking } from "../../entities/booking/bookingsApi";
 import { fetchAvailability, fetchSeats } from "../../entities/seat/seatsApi";
 import { ApiError } from "../../shared/api/client";
 import { OFFICES, type Floor, type Office } from "../../entities/office/offices";
@@ -18,9 +17,6 @@ import { dayMonth, floorName } from "../../shared/i18n/format";
 
 const ORANGE = "#ff7900";
 const pad = (h: number) => String(h).padStart(2, "0");
-
-// Aceleași reguli ca în calendar: nu în trecut, nu sâmbăta și duminica
-const isBlocked = (d: Dayjs) => d.isBefore(dayjs(), "day") || d.day() === 0 || d.day() === 6;
 
 type Props = {
   office: Office;
@@ -40,17 +36,8 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
   const [place, setPlace] = useState<string | null>(null);
   const [selection, setSelection] = useState<BookingSelection | null>(null);
 
-  // Valori de pornire pentru calendar, setate de căutarea cu AI (se reia panoul prin schimbarea cheii)
-  const [initial, setInitial] = useState<BookingSelection | undefined>(undefined);
-  const [panelKey, setPanelKey] = useState(0);
-
-  // Evidențierea locurilor potrivite: din filtru sau din căutarea cu AI
+  // Evidențierea locurilor potrivite, din filtru
   const [attrs, setAttrs] = useState<SeatAttribute[]>([]);
-  const [kind, setKind] = useState<AiKind | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiText, setAiText] = useState("");
-  const [aiNote, setAiNote] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
 
   // Numărul (id) fiecărui loc din backend, după nume; e nevoie de el la rezervare
   const [seatIds, setSeatIds] = useState<Record<string, number>>({});
@@ -62,6 +49,30 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       .then((rows) => setSeatIds(Object.fromEntries(rows.map((s) => [s.label, s.id]))))
       .catch(() => setSeatIds({}));
   }, []);
+
+  // Rezervările mele, așa cum erau înainte de ultimul răspuns al asistentului AI.
+  // Asistentul rezervă și anulează direct în backend și răspunde doar cu text, așa că
+  // după fiecare răspuns comparăm lista nouă cu aceasta, ca să știm ce notificări să adăugăm.
+  const mineRef = useRef<ApiBooking[] | null>(null);
+  const refreshMine = () =>
+    fetchMyBookings()
+      .then((rows) => {
+        mineRef.current = rows;
+        return rows;
+      })
+      .catch(() => null);
+
+  useEffect(() => {
+    if (isGuest) {
+      mineRef.current = null;
+      return;
+    }
+    fetchMyBookings()
+      .then((rows) => {
+        mineRef.current = rows;
+      })
+      .catch(() => {});
+  }, [isGuest]);
 
   // Ce este ocupat vine de la backend, pentru data și orele alese în calendar
   const [bookedIds, setBookedIds] = useState<Set<string>>(new Set());
@@ -85,63 +96,18 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     };
   }, [selection, reload]);
 
-  const highlighting = attrs.length > 0 || kind !== null;
+  const highlighting = attrs.length > 0;
   const suggestedIds = useMemo(() => {
     const ids = new Set<string>();
     if (!highlighting) return ids;
-    if (kind) {
-      const roomKind = kind === "room" ? "meeting" : "booth";
-      ROOMS.filter((r) => r.kind === roomKind && !bookedIds.has(r.id)).forEach((r) => ids.add(r.id));
-    } else {
-      SEATS.filter((s) => !bookedIds.has(s.id) && attrs.every((a) => s.attributes.includes(a))).forEach((s) =>
-        ids.add(s.id)
-      );
-    }
+    SEATS.filter((s) => !bookedIds.has(s.id) && attrs.every((a) => s.attributes.includes(a))).forEach((s) => ids.add(s.id));
     return ids;
-  }, [highlighting, kind, attrs, bookedIds]);
+  }, [highlighting, attrs, bookedIds]);
 
   // Dacă locul ales devine ocupat la altă dată sau oră, se deselectează singur
   const selectedPlace = place !== null && !bookedIds.has(place) ? place : null;
 
-  const clearHighlights = () => {
-    setAttrs([]);
-    setKind(null);
-    setAiNote("");
-    setAiText("");
-  };
-
-  // Căutarea cu AI: cheamă punctul de conectare `askAi` și aplică filtrele primite
-  const runAi = async (text: string) => {
-    const query = text.trim();
-    if (!query) return;
-    setAiBusy(true);
-    try {
-      const q = await askAi(query);
-
-      const date = q.date ? dayjs(q.date) : null;
-      const base = date ?? selection?.date ?? dayjs();
-      if ((date || q.from !== null) && isBlocked(base)) {
-        setAiNote(t.booking.aiBlocked(dayMonth(base)));
-        return;
-      }
-
-      setAttrs(q.attributes);
-      setKind(q.kind);
-
-      const parts = [q.kind === "room" ? t.booking.kindRoom : q.kind === "booth" ? t.booking.kindBooth : t.booking.kindSeat];
-      q.attributes.forEach((a) => parts.push(t.booking.attrs[a].toLowerCase()));
-      if (date || q.from !== null) {
-        setInitial({ date: base, hourly: q.from !== null, from: q.from ?? 9, to: q.to ?? 18 });
-        setPanelKey((k) => k + 1);
-        parts.push(dayMonth(base), q.from !== null ? `${pad(q.from)}:00–${pad(q.to ?? 18)}:00` : t.booking.allDay);
-      }
-      setAiNote(q.message ?? parts.join(" · "));
-    } catch (e) {
-      setAiNote(e instanceof AiNotConnectedError ? t.booking.aiNotConnected : t.booking.aiFailed);
-    } finally {
-      setAiBusy(false);
-    }
-  };
+  const clearHighlights = () => setAttrs([]);
 
   const handleBook = async (sel: BookingSelection) => {
     if (!selectedPlace) return;
@@ -180,7 +146,40 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     });
     setPlace(null); // după rezervare, locul se deselectează
     setReload((n) => n + 1);
+    void refreshMine(); // ca rezervarea făcută de mână să nu apară încă o dată ca „nouă” după asistent
   };
+
+  // După fiecare răspuns al asistentului: harta se reîncarcă, iar rezervările apărute sau dispărute devin notificări
+  const handleAiReply = async () => {
+    setReload((n) => n + 1);
+    if (isGuest) return;
+    const before = mineRef.current;
+    const after = await refreshMine();
+    if (!before || !after) return;
+
+    const labelOf = (seatId: number) => Object.keys(seatIds).find((label) => seatIds[label] === seatId) ?? `#${seatId}`;
+    const notify = (b: ApiBooking, kind: "booked" | "cancelled") => {
+      const start = inOfficeTime(b.starts_at);
+      push({
+        kind,
+        place: labelOf(b.seat_id),
+        date: start.format("YYYY-MM-DD"),
+        from: start.format("HH:mm"),
+        to: inOfficeTime(b.ends_at).format("HH:mm"),
+        floorId: kind === "booked" ? floor.id : undefined,
+      });
+    };
+
+    const beforeIds = new Set(before.map((b) => b.id));
+    const afterIds = new Set(after.map((b) => b.id));
+    after.filter((b) => !beforeIds.has(b.id)).forEach((b) => notify(b, "booked"));
+    // O rezervare poate dispărea și pentru că s-a încheiat; acelea nu sunt anulări
+    const now = Date.now();
+    before
+      .filter((b) => !afterIds.has(b.id) && new Date(b.ends_at).getTime() > now)
+      .forEach((b) => notify(b, "cancelled"));
+  };
+
 
   const breadcrumb = (
     <Breadcrumb
@@ -219,10 +218,7 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 180 }}>
       <Checkbox.Group
         value={attrs}
-        onChange={(v) => {
-          setAttrs(v as SeatAttribute[]);
-          setKind(null);
-        }}
+        onChange={(v) => setAttrs(v as SeatAttribute[])}
         options={(Object.keys(t.booking.attrs) as SeatAttribute[]).map((k) => ({ value: k, label: t.booking.attrs[k] }))}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       />
@@ -234,56 +230,25 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
 
   const tools = (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-      <Space>
-        <Tooltip title={t.booking.aiSearch}>
-          <Button
-            shape="circle"
-            size="large"
-            icon={<SearchOutlined />}
-            type={aiOpen ? "primary" : "default"}
-            aria-label={t.booking.aiSearch}
-            style={aiOpen ? undefined : roundButton}
-            onClick={() => setAiOpen(!aiOpen)}
-          />
-        </Tooltip>
-        <Popover trigger="click" placement="bottomRight" title={t.booking.highlight} content={filterContent}>
-          <Button
-            shape="circle"
-            size="large"
-            icon={<FilterOutlined />}
-            type={highlighting ? "primary" : "default"}
-            aria-label={t.booking.filter}
-            style={highlighting ? undefined : roundButton}
-          />
-        </Popover>
-      </Space>
-
-      {aiOpen && (
-        <div style={{ width: 380, maxWidth: "100%" }}>
-          <Input.Search
-            autoFocus
-            allowClear
-            value={aiText}
-            onChange={(e) => setAiText(e.target.value)}
-            onSearch={runAi}
-            enterButton={t.booking.askAi}
-            loading={aiBusy}
-            placeholder={t.booking.aiPlaceholder}
-            aria-label={t.booking.aiAria}
-          />
-        </div>
-      )}
+      <Popover trigger="click" placement="bottomRight" title={t.booking.highlight} content={filterContent}>
+        <Button
+          shape="circle"
+          size="large"
+          icon={<FilterOutlined />}
+          type={highlighting ? "primary" : "default"}
+          aria-label={t.booking.filter}
+          style={highlighting ? undefined : roundButton}
+        />
+      </Popover>
 
       {highlighting && (
         <div style={{ fontSize: 12, color: token.colorTextSecondary, textAlign: "right" }}>
-          {aiNote ? `${aiNote} · ` : ""}
           {t.booking.available(suggestedIds.size)}{" "}
           <Button type="link" size="small" style={{ padding: 0, height: "auto", fontSize: 12 }} onClick={clearHighlights}>
             {t.booking.clear}
           </Button>
         </div>
       )}
-      {!highlighting && aiNote && <div style={{ fontSize: 12, color: token.colorTextSecondary, maxWidth: 380, textAlign: "right" }}>{aiNote}</div>}
     </div>
   );
 
@@ -312,13 +277,12 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       </div>
       <div style={{ ...panelStyle, flex: "0 0 auto" }}>
         <BookingPanel
-          key={panelKey}
-          initial={initial}
           placeLabel={selectedPlace}
           onBook={handleBook}
           onSelectionChange={setSelection}
         />
       </div>
+      <AiAssistant signedIn={!isGuest} onReply={handleAiReply} />
     </div>
   );
 }
