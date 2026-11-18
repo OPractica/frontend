@@ -160,9 +160,10 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       await createBooking(seatId, officeTime(interval.date, interval.from), officeTime(interval.date, interval.to));
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
+      const code = e instanceof ApiError ? e.code : "";
       if (status === 401) messageApi.error(t.booking.sessionExpired);
-      else if (status === 409) messageApi.error(t.booking.alreadyBooked(selectedPlace));
-      else messageApi.error(t.booking.bookFailed);
+      else if (code === "seat_already_booked") messageApi.error(t.booking.alreadyBooked(selectedPlace));
+      else messageApi.error(t.booking.errors[code] ?? t.booking.bookFailed);
       setReload((n) => n + 1);
       return;
     }

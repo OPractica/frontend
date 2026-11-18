@@ -8,10 +8,13 @@ const API_URL =
 
 export class ApiError extends Error {
   status: number;
+  /** Codul erorii trimis de backend, de exemplu "user_booking_overlap" ("" dacă lipsește). */
+  code: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code = "") {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -64,7 +67,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const detail = typeof data?.detail === "string" ? data.detail : "Request failed";
-    throw new ApiError(res.status, detail);
+    const code = typeof data?.code === "string" ? data.code : "";
+    throw new ApiError(res.status, detail, code);
   }
   return data as T;
 }
