@@ -39,6 +39,9 @@ export function fetchMyBookings() {
 export function cancelBooking(id: number) {
   return request<ApiBooking>(`/bookings/${id}/cancel`, { method: "PATCH" });
 }
+export function checkIn(id: number) {
+  return request<ApiBooking>(`/bookings/${id}/check-in`, { method: "POST" });
+}
 
 // Ora primită de la backend, arătată în ora biroului
 export function inOfficeTime(iso: string) {
