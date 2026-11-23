@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Input, Tooltip, message, theme as antdTheme } from "antd";
-import { AudioOutlined, CloseOutlined, RobotOutlined, SendOutlined } from "@ant-design/icons";
+import { AudioOutlined, BorderOutlined, CloseOutlined, RobotOutlined, SendOutlined } from "@ant-design/icons";
 import { ApiError } from "../../shared/api/client";
 import { useLanguage } from "../../shared/i18n/language";
-import { sendChat } from "./aiApi";
+import { sendChat, transcribe } from "./aiApi";
 
 type Mode = "closed" | "choose" | "text";
 type ChatMessage = { from: "user" | "ai"; text: string; error?: boolean };
+type Voice = "idle" | "recording" | "transcribing";
+
+// După atâtea secunde înregistrarea se oprește singură
+const MAX_RECORDING_SECONDS = 60;
+// Limita lui POST /ai/chat pentru text
+const MAX_TEXT = 2000;
 
 // Ant Design nu are o iconiță de tastatură, așa că e desenată aici
 const KeyboardIcon = () => (
@@ -29,7 +35,8 @@ type Props = {
 
 /**
  * Butonul rotund din colțul de jos: la apăsare se desface în microfon și tastatură.
- * Tastatura deschide un mic chat cu asistentul; microfonul va trimite vocea când backend-ul are adresa pentru înregistrări.
+ * Tastatura deschide un mic chat cu asistentul. Microfonul înregistrează vocea, o trimite la POST /voice/transcribe,
+ * iar textul recunoscut apare în același chat și pleacă la asistent, ca un mesaj scris.
  */
 export default function AiAssistant({ signedIn, onReply }: Props) {
   const { t } = useLanguage();
@@ -44,15 +51,30 @@ export default function AiAssistant({ signedIn, onReply }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const [voice, setVoice] = useState<Voice>("idle");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const timerRef = useRef<number | undefined>(undefined);
+  // La închiderea asistentului în timpul înregistrării, sunetul nu se mai trimite
+  const discardRef = useRef(false);
+
   // Lista de mesaje coboară singură la ultimul mesaj
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages, busy]);
+  }, [messages, busy, voice]);
 
-  const send = async () => {
-    const q = text.trim();
-    if (!q || busy) return;
-    setText("");
+  // Dacă pagina se închide în timpul înregistrării, microfonul se eliberează
+  useEffect(
+    () => () => {
+      discardRef.current = true;
+      window.clearTimeout(timerRef.current);
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    },
+    [],
+  );
+
+  const addError = (error: string) => setMessages((m) => [...m, { from: "ai", text: error, error: true }]);
+
+  const ask = async (q: string) => {
     setMessages((m) => [...m, { from: "user", text: q }]);
     setBusy(true);
     try {
@@ -65,10 +87,100 @@ export default function AiAssistant({ signedIn, onReply }: Props) {
       const status = e instanceof ApiError ? e.status : 0;
       const error =
         status === 401 ? t.ai.signIn : code === "ai_busy" ? t.ai.busy : code === "ai_unavailable" ? t.ai.unavailable : t.ai.failed;
-      setMessages((m) => [...m, { from: "ai", text: error, error: true }]);
+      addError(error);
     } finally {
       setBusy(false);
     }
+  };
+
+  const send = () => {
+    const q = text.trim();
+    if (!q || busy) return;
+    setText("");
+    void ask(q);
+  };
+
+  // Înregistrarea terminată: se transformă în text, iar textul pleacă la asistent
+  const handleAudio = async (audio: Blob) => {
+    setVoice("transcribing");
+    try {
+      const q = (await transcribe(audio)).transcription.trim();
+      // La liniște sau zgomot, recunoașterea poate întoarce doar semne („.”); fără nicio literă nu e un mesaj
+      if (!/\p{L}/u.test(q)) addError(t.ai.voiceNotUnderstood);
+      else if (q.length > MAX_TEXT) addError(t.ai.voiceTooLong);
+      else {
+        setVoice("idle");
+        await ask(q);
+      }
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      const error =
+        status === 401
+          ? t.ai.signIn
+          : status === 413
+            ? t.ai.voiceTooLong
+            : status === 415 || status === 422
+              ? t.ai.voiceNotUnderstood
+              : status === 429
+                ? t.ai.busy
+                : status === 503
+                  ? t.ai.unavailable
+                  : t.ai.failed;
+      addError(error);
+    } finally {
+      setVoice("idle");
+    }
+  };
+
+  const startRecording = async () => {
+    if (!signedIn) {
+      messageApi.warning(t.ai.signIn);
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      messageApi.error(t.ai.noMic);
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      messageApi.error(t.ai.micDenied);
+      return;
+    }
+
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      stream.getTracks().forEach((track) => track.stop()); // se stinge indicatorul de microfon al browserului
+      recorderRef.current = null;
+      if (discardRef.current) return;
+      const audio = new Blob(chunks, { type: recorder.mimeType });
+      if (audio.size === 0) addError(t.ai.voiceNotUnderstood);
+      else void handleAudio(audio);
+    };
+
+    discardRef.current = false;
+    recorderRef.current = recorder;
+    recorder.start();
+    setVoice("recording");
+    setMode("text"); // chat-ul se deschide, ca să se vadă ce s-a înțeles și ce răspunde asistentul
+    timerRef.current = window.setTimeout(() => stopRecording(), MAX_RECORDING_SECONDS * 1000);
+  };
+
+  const stopRecording = (discard = false) => {
+    window.clearTimeout(timerRef.current);
+    discardRef.current = discard;
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    setVoice("idle");
+  };
+
+  const close = () => {
+    if (voice === "recording") stopRecording(true);
+    setMode("closed");
   };
 
   const chat = (
@@ -108,6 +220,8 @@ export default function AiAssistant({ signedIn, onReply }: Props) {
             {m.text}
           </div>
         ))}
+        {voice === "recording" && <div style={{ color: token.colorError, fontSize: 13 }}>{t.ai.listening}</div>}
+        {voice === "transcribing" && <div style={{ color: token.colorTextSecondary, fontSize: 13 }}>{t.ai.transcribing}</div>}
         {busy && <div style={{ color: token.colorTextSecondary, fontSize: 13 }}>{t.ai.thinking}</div>}
       </div>
 
@@ -139,10 +253,22 @@ export default function AiAssistant({ signedIn, onReply }: Props) {
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Tooltip title={t.ai.close}>
-            <Button shape="circle" icon={<CloseOutlined />} aria-label={t.ai.close} onClick={() => setMode("closed")} />
+            <Button shape="circle" icon={<CloseOutlined />} aria-label={t.ai.close} onClick={close} />
           </Tooltip>
-          <Tooltip title={t.ai.voice}>
-            <Button shape="circle" icon={<AudioOutlined />} aria-label={t.ai.voice} style={ROUND} onClick={() => messageApi.info(t.ai.voiceSoon)} />
+          <Tooltip title={voice === "recording" ? t.ai.stop : t.ai.voice}>
+            {voice === "recording" ? (
+              <Button type="primary" danger shape="circle" icon={<BorderOutlined />} aria-label={t.ai.stop} style={ROUND} onClick={() => stopRecording()} />
+            ) : (
+              <Button
+                shape="circle"
+                icon={<AudioOutlined />}
+                aria-label={t.ai.voice}
+                style={ROUND}
+                loading={voice === "transcribing"}
+                disabled={busy}
+                onClick={startRecording}
+              />
+            )}
           </Tooltip>
           <Tooltip title={t.ai.keyboard}>
             <Button
