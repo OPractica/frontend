@@ -4,7 +4,7 @@ import { Button, Drawer, Empty, List } from "antd";
 import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { useBookings } from "../../entities/booking/bookings";
 import { useLanguage } from "../../shared/i18n/language";
-import { dayMonth, floorName } from "../../shared/i18n/format";
+import { dayMonth, floorName, placeName } from "../../shared/i18n/format";
 import { locationOf } from "../../entities/office/offices";
 
 export type NoticeKind = "booked" | "cancelled" | "reminder";
@@ -144,12 +144,13 @@ export function NotificationsDrawer({ open, onClose }: { open: boolean; onClose:
   // Textul notificării, în limba de acum
   const textOf = (n: Notice) => {
     const when = `${dayMonth(dayjs(n.date))}, ${n.from}–${n.to}`;
+    const place = placeName(t, n.place);
     if (n.kind === "booked") {
       const where = n.floorId ? locationOf(n.floorId, (f) => floorName(t, f)) : "";
-      return where ? t.booking.bookedNotice(n.place, when, where) : t.booking.booked(n.place, when);
+      return where ? t.booking.bookedNotice(place, when, where) : t.booking.booked(place, when);
     }
-    if (n.kind === "cancelled") return t.mine.cancelledNotice(n.place, when);
-    return t.notices.today(n.place, `${n.from}–${n.to}`);
+    if (n.kind === "cancelled") return t.mine.cancelledNotice(place, when);
+    return t.notices.today(place, `${n.from}–${n.to}`);
   };
 
   const close = () => {

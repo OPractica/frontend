@@ -12,3 +12,6 @@ export const longDate = (d: Dayjs) => `${capFirst(d.format("ddd"))}, ${dayMonth(
 
 /** Numele etajului în limba aleasă; dacă lipsește din traduceri, rămâne cel din date. */
 export const floorName = (t: Dict, floor: { id: string; label: string }) => t.floors[floor.id] ?? floor.label;
+
+/** Numele scurt al unui loc în limba aleasă: „Sala 1” → „Room 1”; locurile obișnuite („A01”) rămân la fel. */
+export const placeName = (t: Dict, label: string) => t.plan.rooms[label]?.split(" · ")[0] ?? label;

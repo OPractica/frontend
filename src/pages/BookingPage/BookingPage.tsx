@@ -10,10 +10,11 @@ import { useAuth } from "../../features/auth/auth";
 import { intervalOf } from "../../entities/booking";
 import { createBooking, fetchMyBookings, inOfficeTime, officeTime, type ApiBooking } from "../../entities/booking/bookingsApi";
 import { fetchAvailability, fetchSeats } from "../../entities/seat/seatsApi";
+import { createRoomBooking, fetchRooms } from "../../entities/meeting-room/roomsApi";
 import { ApiError } from "../../shared/api/client";
 import { OFFICES, type Floor, type Office } from "../../entities/office/offices";
 import { useLanguage } from "../../shared/i18n/language";
-import { dayMonth, floorName } from "../../shared/i18n/format";
+import { dayMonth, floorName, placeName } from "../../shared/i18n/format";
 
 const ORANGE = "#ff7900";
 const pad = (h: number) => String(h).padStart(2, "0");
@@ -41,6 +42,8 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
 
   // Numărul (id) fiecărui loc din backend, după nume; e nevoie de el la rezervare
   const [seatIds, setSeatIds] = useState<Record<string, number>>({});
+  // Numărul (id) fiecărei săli și cabine din backend, după numele de pe hartă („Sala 1” → 1)
+  const [roomIds, setRoomIds] = useState<Record<string, number>>({});
   // Crește după fiecare rezervare, ca harta să ceară din nou ce e ocupat
   const [reload, setReload] = useState(0);
 
@@ -82,10 +85,19 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     const { date, from, to } = intervalOf(selection);
     let cancelled = false;
 
-    fetchAvailability(`${date}T${pad(from)}:00:00`, `${date}T${pad(to)}:00:00`)
-      .then((rows) => {
+    const fromDate = `${date}T${pad(from)}:00:00`;
+    const toDate = `${date}T${pad(to)}:00:00`;
+    // Locurile și sălile au endpoint-uri separate; harta le arată împreună
+    Promise.all([fetchAvailability(fromDate, toDate), fetchRooms(fromDate, toDate).catch(() => [])])
+      .then(([seats, rooms]) => {
         if (cancelled) return;
-        setBookedIds(new Set(rows.filter((r) => r.status === "booked").map((r) => r.label)));
+        setRoomIds(Object.fromEntries(rooms.map((r) => [r.roomAlias, r.roomId])));
+        setBookedIds(
+          new Set([
+            ...seats.filter((r) => r.status === "booked").map((r) => r.label),
+            ...rooms.filter((r) => r.isBusy).map((r) => r.roomAlias),
+          ])
+        );
       })
       .catch(() => {
         if (!cancelled) setBookedIds(new Set());
@@ -115,27 +127,34 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       messageApi.warning(t.booking.signInToBook);
       return;
     }
+    const name = placeName(t, selectedPlace);
+    // Locul ales e fie un loc obișnuit, fie o sală sau cabină; fiecare se rezervă prin endpoint-ul lui
     const seatId = seatIds[selectedPlace];
-    if (seatId === undefined) {
-      messageApi.error(t.booking.cantBook(selectedPlace));
+    const roomId = roomIds[selectedPlace];
+    if (seatId === undefined && roomId === undefined) {
+      messageApi.error(t.booking.cantBook(name));
       return;
     }
 
     const interval = intervalOf(sel);
+    const startsAt = officeTime(interval.date, interval.from);
+    const endsAt = officeTime(interval.date, interval.to);
     try {
-      await createBooking(seatId, officeTime(interval.date, interval.from), officeTime(interval.date, interval.to));
+      if (seatId !== undefined) await createBooking(seatId, startsAt, endsAt);
+      else await createRoomBooking(roomId, startsAt, endsAt);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       const code = e instanceof ApiError ? e.code : "";
       if (status === 401) messageApi.error(t.booking.sessionExpired);
-      else if (code === "seat_already_booked") messageApi.error(t.booking.alreadyBooked(selectedPlace));
+      else if (code === "seat_already_booked" || code === "room_already_booked") messageApi.error(t.booking.alreadyBooked(name));
+      else if (code === "room_not_found") messageApi.error(t.booking.cantBook(name));
       else messageApi.error(t.booking.errors[code] ?? t.booking.bookFailed);
       setReload((n) => n + 1);
       return;
     }
 
     const when = `${dayMonth(sel.date)}, ${pad(interval.from)}:00–${pad(interval.to)}:00`;
-    messageApi.success(t.booking.booked(selectedPlace, when));
+    messageApi.success(t.booking.booked(name, when));
     push({
       kind: "booked",
       place: selectedPlace,
@@ -277,7 +296,7 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       </div>
       <div style={{ ...panelStyle, flex: "0 0 auto" }}>
         <BookingPanel
-          placeLabel={selectedPlace}
+          placeLabel={selectedPlace && placeName(t, selectedPlace)}
           onBook={handleBook}
           onSelectionChange={setSelection}
         />
