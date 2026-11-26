@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Popconfirm, Table, Tag, Typography, message, type TableColumnsType } from "antd";
+import { Button, Popconfirm, Table, Tag, Typography, message, theme as antdTheme, type TableColumnsType } from "antd";
 import { cancelBooking, checkIn, fetchMyBookings, inOfficeTime } from "../../entities/booking/bookingsApi";
 import { checkInState } from "../../entities/booking/checkIn";
 import { locationOf } from "../../entities/office/offices";
@@ -34,6 +34,8 @@ export default function MyBookingsPage() {
   const { t } = useLanguage();
   const { push } = useNotifications();
   const [messageApi, contextHolder] = message.useMessage();
+  // Culorile vin din tema antd (light/dark), nu sunt scrise de mână
+  const { token } = antdTheme.useToken();
 
   const [bookings, setBookings] = useState<Row[]>([]);
   const [loading, setLoading] = useState(!isGuest);
@@ -182,7 +184,14 @@ export default function MyBookingsPage() {
   ];
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #ececec", borderRadius: 8, padding: 16 }}>
+    <div
+      style={{
+        background: token.colorBgContainer,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        padding: token.paddingMD,
+      }}
+    >
       {contextHolder}
       <Typography.Title level={4} style={{ marginTop: 0 }}>
         {t.menu.mine}
