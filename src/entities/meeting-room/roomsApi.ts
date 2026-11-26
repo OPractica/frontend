@@ -6,7 +6,7 @@ export const ROOMS_OFFICE_ID = 1;
 /** O sală cu starea ei în intervalul cerut. Aici câmpurile vin în stilul roomId, iar capacitatea e text. */
 export type RoomStatus = {
   roomId: number;
-  roomAlias: string; // același nume ca pe hartă: „Sala 1”, „Cabină 1”
+  roomAlias: string; // același nume ca pe hartă: „Chili”, „Cabină 1”
   roomCapacity: string;
   roomEquipments: string;
   isBusy: boolean;

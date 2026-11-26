@@ -42,7 +42,7 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
 
   // Numărul (id) fiecărui loc din backend, după nume; e nevoie de el la rezervare
   const [seatIds, setSeatIds] = useState<Record<string, number>>({});
-  // Numărul (id) fiecărei săli și cabine din backend, după numele de pe hartă („Sala 1” → 1)
+  // Numărul (id) fiecărei săli și cabine din backend, după numele de pe hartă („Chili” → 1)
   const [roomIds, setRoomIds] = useState<Record<string, number>>({});
   // Crește după fiecare rezervare, ca harta să ceară din nou ce e ocupat
   const [reload, setReload] = useState(0);

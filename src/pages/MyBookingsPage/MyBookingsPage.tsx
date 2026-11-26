@@ -20,7 +20,7 @@ type Row = {
   key: string;
   kind: "seat" | "room";
   id: number;
-  place: string; // numele de pe hartă: „A01”, „Sala 1”
+  place: string; // numele de pe hartă: „A01”, „Chili”
   starts_at: string;
   ends_at: string;
   is_checked_in: boolean;

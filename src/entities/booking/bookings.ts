@@ -105,10 +105,10 @@ function seedBookings(): Booking[] {
     { id: 'seed-1', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'A01', date: d1, from: 9, to: 18 },
     { id: 'seed-2', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'A05', date: d1, from: 10, to: 14 },
     { id: 'seed-3', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'B03', date: d1, from: 13, to: 18 },
-    { id: 'seed-4', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'Sala 1', date: d1, from: 11, to: 12 },
+    { id: 'seed-4', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'Chili', date: d1, from: 11, to: 12 },
     { id: 'seed-5', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'A06', date: d2, from: 9, to: 13 },
     { id: 'seed-6', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'C02', date: d2, from: 9, to: 18 },
-    { id: 'seed-7', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'Sala 2', date: d2, from: 14, to: 16 },
+    { id: 'seed-7', floorId: SEED_FLOOR_ID, userId: SEED_USER_ID, placeId: 'Ketchup', date: d2, from: 14, to: 16 },
   ];
 }
 
