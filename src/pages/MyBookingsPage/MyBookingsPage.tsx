@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { Button, Popconfirm, Table, Tag, Typography, message, type TableColumnsType } from "antd";
+import {
+  Button,
+  Popconfirm,
+  Table,
+  Tag,
+  Typography,
+  message,
+  theme as antTheme,
+  type TableColumnsType,
+} from "antd";
 import { cancelBooking, checkIn, fetchMyBookings, inOfficeTime } from "../../entities/booking/bookingsApi";
 import { checkInState } from "../../entities/booking/checkIn";
 import { locationOf } from "../../entities/office/offices";
@@ -34,6 +43,8 @@ export default function MyBookingsPage() {
   const { t } = useLanguage();
   const { push } = useNotifications();
   const [messageApi, contextHolder] = message.useMessage();
+  // Culorile vin din tema antd (light/dark), nu sunt scrise de mână
+  const { token } = antTheme.useToken();
 
   const [bookings, setBookings] = useState<Row[]>([]);
   const [loading, setLoading] = useState(!isGuest);
@@ -77,7 +88,12 @@ export default function MyBookingsPage() {
         const seatLabels = Object.fromEntries(seats.map((s) => [s.id, s.label]));
         const roomLabels = Object.fromEntries(rooms.map((r) => [r.roomId, r.roomAlias]));
         const rows: Row[] = [
-          ...mine.map((b) => ({ ...b, key: `seat-${b.id}`, kind: "seat" as const, place: seatLabels[b.seat_id] ?? `#${b.seat_id}` })),
+          ...mine.map((b) => ({
+            ...b,
+            key: `seat-${b.id}`,
+            kind: "seat" as const,
+            place: seatLabels[b.seat_id] ?? `#${b.seat_id}`,
+          })),
           ...myRooms.map((b) => ({
             ...b,
             key: `room-${b.id}`,
@@ -182,7 +198,14 @@ export default function MyBookingsPage() {
   ];
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #ececec", borderRadius: 8, padding: 16 }}>
+    <div
+      style={{
+        background: token.colorBgContainer,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        padding: token.paddingMD,
+      }}
+    >
       {contextHolder}
       <Typography.Title level={4} style={{ marginTop: 0 }}>
         {t.menu.mine}
