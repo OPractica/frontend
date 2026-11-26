@@ -23,7 +23,8 @@ function send(path: string, options: RequestInit): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      // La trimiterea unui fișier (FormData) browserul pune singur tipul, împreună cu separatorul părților
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(tokens ? { Authorization: `Bearer ${tokens.access_token}` } : {}),
       ...options.headers,
     },

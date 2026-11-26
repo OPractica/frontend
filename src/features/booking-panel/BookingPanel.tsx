@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button, Select, Switch, theme as antdTheme } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { Calendar } from "../../shared/ui/molecules/Calendar";
@@ -14,6 +14,7 @@ export type BookingSelection = {
 
 type Props = {
   placeLabel: string | null; // locul ales pe hartă (deocamdată null)
+  placeDetails?: ReactNode; // afișat sub locul ales, de exemplu capacitatea și echipamentul sălii
   onBook: (selection: BookingSelection) => void;
   // Anunță pagina de fiecare dată când se schimbă data sau orele, ca harta să arate ce e liber.
   // Trebuie să fie o funcție stabilă (de exemplu setState), altfel se reapelează la fiecare randare.
@@ -40,7 +41,7 @@ const firstWorkingDay = (): Dayjs => {
 
 const pad = (h: number) => String(h).padStart(2, "0");
 
-export default function BookingPanel({ placeLabel, onBook, onSelectionChange, initial }: Props) {
+export default function BookingPanel({ placeLabel, placeDetails, onBook, onSelectionChange, initial }: Props) {
   const { token } = antdTheme.useToken();
   const { t } = useLanguage();
   const [date, setDate] = useState<Dayjs>(initial?.date ?? firstWorkingDay());
@@ -78,6 +79,7 @@ export default function BookingPanel({ placeLabel, onBook, onSelectionChange, in
         {placeLabel
           ? t.panel.selectedPlace(dayMonth(date), placeLabel, when)
           : t.panel.selectPlace(dayMonth(date))}
+        {placeLabel && placeDetails && <div style={{ marginTop: 6 }}>{placeDetails}</div>}
       </div>
 
       <Button type="primary" block disabled={!canBook} onClick={() => onBook({ date, hourly, from, to })}>
