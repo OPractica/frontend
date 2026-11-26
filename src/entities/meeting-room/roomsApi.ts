@@ -12,6 +12,20 @@ export type RoomStatus = {
   isBusy: boolean;
 };
 
+/** Echipamentul sălii ca listă: „TV,  Whiteboard” → ["TV", "Whiteboard"]. */
+export const roomEquipment = (room: RoomStatus): string[] =>
+  room.roomEquipments
+    .split(",")
+    .map((item) => item.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+
+/** Sala încape toți oamenii și are tot echipamentul cerut; literele mari nu contează. */
+export function roomFits(room: RoomStatus, people: number | null, equipment: readonly string[]): boolean {
+  const has = new Set(roomEquipment(room).map((item) => item.toLowerCase()));
+  const enoughSeats = people === null || parseInt(room.roomCapacity, 10) >= people;
+  return enoughSeats && equipment.every((item) => has.has(item.toLowerCase()));
+}
+
 export type ApiRoomBooking = {
   id: number;
   room_id: number;

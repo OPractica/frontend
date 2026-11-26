@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Breadcrumb, Button, Checkbox, Empty, Popover, message, theme as antdTheme } from "antd";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Breadcrumb, Button, Checkbox, Divider, Empty, InputNumber, Popover, message, theme as antdTheme } from "antd";
 import { FilterOutlined } from "@ant-design/icons";
 import { BookingPanel, type BookingSelection } from "../../features/booking-panel";
 import { FloorPlan } from "../../features/floor-plan";
@@ -10,7 +10,7 @@ import { useAuth } from "../../features/auth/auth";
 import { intervalOf } from "../../entities/booking";
 import { createBooking, fetchMyBookings, inOfficeTime, officeTime, type ApiBooking } from "../../entities/booking/bookingsApi";
 import { fetchAvailability, fetchSeats } from "../../entities/seat/seatsApi";
-import { createRoomBooking, fetchRooms } from "../../entities/meeting-room/roomsApi";
+import { createRoomBooking, fetchRooms, roomEquipment, roomFits, type RoomStatus } from "../../entities/meeting-room/roomsApi";
 import { ApiError } from "../../shared/api/client";
 import { OFFICES, type Floor, type Office } from "../../entities/office/offices";
 import { useLanguage } from "../../shared/i18n/language";
@@ -39,11 +39,16 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
 
   // Evidențierea locurilor potrivite, din filtru
   const [attrs, setAttrs] = useState<SeatAttribute[]>([]);
+  // Evidențierea sălilor potrivite: câte persoane vin și ce echipament trebuie (doar filtru, nu se salvează)
+  const [people, setPeople] = useState<number | null>(null);
+  const [equipment, setEquipment] = useState<string[]>([]);
 
   // Numărul (id) fiecărui loc din backend, după nume; e nevoie de el la rezervare
   const [seatIds, setSeatIds] = useState<Record<string, number>>({});
-  // Numărul (id) fiecărei săli și cabine din backend, după numele de pe hartă („Chili” → 1)
-  const [roomIds, setRoomIds] = useState<Record<string, number>>({});
+  // Sălile și cabinele din backend pentru intervalul ales: id, capacitate, echipament, ocupat / liber
+  const [rooms, setRooms] = useState<RoomStatus[]>([]);
+  // Numărul (id) fiecărei săli și cabine, după numele de pe hartă („Chili” → 1)
+  const roomIds = useMemo(() => Object.fromEntries(rooms.map((r) => [r.roomAlias, r.roomId])), [rooms]);
   // Crește după fiecare rezervare, ca harta să ceară din nou ce e ocupat
   const [reload, setReload] = useState(0);
 
@@ -89,13 +94,13 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     const toDate = `${date}T${pad(to)}:00:00`;
     // Locurile și sălile au endpoint-uri separate; harta le arată împreună
     Promise.all([fetchAvailability(fromDate, toDate), fetchRooms(fromDate, toDate).catch(() => [])])
-      .then(([seats, rooms]) => {
+      .then(([seats, roomRows]) => {
         if (cancelled) return;
-        setRoomIds(Object.fromEntries(rooms.map((r) => [r.roomAlias, r.roomId])));
+        setRooms(roomRows);
         setBookedIds(
           new Set([
             ...seats.filter((r) => r.status === "booked").map((r) => r.label),
-            ...rooms.filter((r) => r.isBusy).map((r) => r.roomAlias),
+            ...roomRows.filter((r) => r.isBusy).map((r) => r.roomAlias),
           ])
         );
       })
@@ -108,18 +113,54 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
     };
   }, [selection, reload]);
 
-  const highlighting = attrs.length > 0;
+  // Echipamentul pentru filtru vine din datele sălilor, nu dintr-o listă scrisă de mână
+  const equipmentOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    rooms.forEach((r) =>
+      roomEquipment(r).forEach((item) => {
+        if (!byKey.has(item.toLowerCase())) byKey.set(item.toLowerCase(), item);
+      })
+    );
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+  }, [rooms]);
+
+  const roomFilter = people !== null || equipment.length > 0;
+  const highlighting = attrs.length > 0 || roomFilter;
   const suggestedIds = useMemo(() => {
     const ids = new Set<string>();
-    if (!highlighting) return ids;
-    SEATS.filter((s) => !bookedIds.has(s.id) && attrs.every((a) => s.attributes.includes(a))).forEach((s) => ids.add(s.id));
+    if (attrs.length > 0) {
+      SEATS.filter((s) => !bookedIds.has(s.id) && attrs.every((a) => s.attributes.includes(a))).forEach((s) => ids.add(s.id));
+    }
+    // Sălile potrivite: libere, încap toți și au tot echipamentul cerut
+    if (roomFilter) rooms.filter((r) => !r.isBusy && roomFits(r, people, equipment)).forEach((r) => ids.add(r.roomAlias));
     return ids;
-  }, [highlighting, attrs, bookedIds]);
+  }, [attrs, bookedIds, roomFilter, rooms, people, equipment]);
 
   // Dacă locul ales devine ocupat la altă dată sau oră, se deselectează singur
   const selectedPlace = place !== null && !bookedIds.has(place) ? place : null;
 
-  const clearHighlights = () => setAttrs([]);
+  const clearHighlights = () => {
+    setAttrs([]);
+    setPeople(null);
+    setEquipment([]);
+  };
+
+  // Pentru sala aleasă: capacitatea și echipamentul, plus un avertisment dacă nu se potrivește filtrului
+  const selectedRoom = rooms.find((r) => r.roomAlias === selectedPlace);
+  let roomDetails: ReactNode = null;
+  if (selectedRoom) {
+    const capacity = parseInt(selectedRoom.roomCapacity, 10);
+    const items = roomEquipment(selectedRoom);
+    const missing = equipment.filter((e) => !items.some((item) => item.toLowerCase() === e.toLowerCase()));
+    const warning = { color: token.colorWarningText };
+    roomDetails = (
+      <>
+        <div>{t.booking.roomInfo(capacity, items.length > 0 ? items.join(", ") : t.booking.noEquipment)}</div>
+        {people !== null && people > capacity && <div style={warning}>{t.booking.tooSmall(capacity, people)}</div>}
+        {missing.length > 0 && <div style={warning}>{t.booking.missing(missing.join(", "))}</div>}
+      </>
+    );
+  }
 
   const handleBook = async (sel: BookingSelection) => {
     if (!selectedPlace) return;
@@ -241,6 +282,23 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
         options={(Object.keys(t.booking.attrs) as SeatAttribute[]).map((k) => ({ value: k, label: t.booking.attrs[k] }))}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       />
+      <Divider style={{ margin: "4px 0" }} />
+      <div style={{ fontWeight: 600 }}>{t.booking.meetingRoom}</div>
+      <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        {t.booking.people}
+        <InputNumber size="small" min={1} precision={0} value={people} onChange={setPeople} style={{ width: 72 }} />
+      </label>
+      {equipmentOptions.length > 0 && (
+        <>
+          <div style={{ color: token.colorTextSecondary }}>{t.booking.equipment}</div>
+          <Checkbox.Group
+            value={equipment}
+            onChange={(v) => setEquipment(v as string[])}
+            options={equipmentOptions}
+            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+          />
+        </>
+      )}
       <Button size="small" type="link" style={{ alignSelf: "flex-start", padding: 0 }} onClick={clearHighlights}>
         {t.booking.clear}
       </Button>
@@ -297,6 +355,7 @@ export default function BookingPage({ office, floor, onChangeFloor }: Props) {
       <div style={{ ...panelStyle, flex: "0 0 auto" }}>
         <BookingPanel
           placeLabel={selectedPlace && placeName(t, selectedPlace)}
+          placeDetails={roomDetails}
           onBook={handleBook}
           onSelectionChange={setSelection}
         />
