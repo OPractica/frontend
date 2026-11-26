@@ -61,9 +61,9 @@ export const ROOMS: Room[] = [
   { id: 'storage', name: 'Printer · Depozit', kind: 'storage', x: 40, y: 280, w: 110, h: 130 },
   { id: 'Cabină 1', name: 'Cabină 1', kind: 'booth', x: 180, y: 178, w: 44, h: 44 },
   { id: 'Cabină 2', name: 'Cabină 2', kind: 'booth', x: 180, y: 230, w: 44, h: 44 },
-  { id: 'Sala 1', name: 'Sala 1 · 8 pers.', kind: 'meeting', x: 262, y: 178, w: 130, h: 96 },
-  { id: 'Sala 2', name: 'Sala 2 · 6 pers.', kind: 'meeting', x: 404, y: 178, w: 110, h: 96 },
-  { id: 'Sala 3', name: 'Sala 3 · 10 pers.', kind: 'meeting', x: 526, y: 178, w: 150, h: 96 },
+  { id: 'Chili', name: 'Chili · 8 pers.', kind: 'meeting', x: 262, y: 178, w: 130, h: 96 },
+  { id: 'Ketchup', name: 'Ketchup · 6 pers.', kind: 'meeting', x: 404, y: 178, w: 110, h: 96 },
+  { id: 'Boiling Room', name: 'Boiling Room · 10 pers.', kind: 'meeting', x: 526, y: 178, w: 150, h: 96 },
   { id: 'lounge', name: 'Lounge', kind: 'lounge', x: 262, y: 286, w: 130, h: 40 },
   { id: 'collab', name: 'Zonă colaborativă', kind: 'collab', x: 770, y: 178, w: 157, h: 148 },
 ];
